@@ -1,0 +1,14 @@
+.venv/
+__pycache__/
+*.egg-info/
+.pytest_cache/
+
+# Downloaded on first run
+models/
+
+# Local outputs
+sessions/
+recordings/
+
+# Test clips can be large; commit them deliberately (or use Git LFS)
+tests/clips/*.mp4

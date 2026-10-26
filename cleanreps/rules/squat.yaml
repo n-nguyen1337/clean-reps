@@ -1,0 +1,30 @@
+# Squat. Primary metric: knee angle (hip-knee-ankle), ~175 standing, ~90 at parallel.
+name: Squat
+camera_hint: Side view for depth and torso lean; front view for knee tracking.
+primary_metric: knee_angle
+top_threshold: 160       # standing tall
+bottom_threshold: 120    # deep enough to count as a rep
+hysteresis: 8
+min_excursion: 25        # smaller dips are ignored rather than flagged as partial reps
+partial_cue: Go deeper
+
+rules:
+  - id: depth
+    metric: knee_angle
+    aggregate: min
+    max: 100              # fault if the lowest knee angle stays above this
+    cue: Squat a little deeper
+    priority: 3
+
+  - id: torso_lean
+    metric: torso_lean    # side view only
+    max: 50
+    cue: Chest up
+    priority: 2
+
+  - id: knee_valgus
+    metric: knee_ratio    # front view only
+    min: 0.8
+    min_frames: 4
+    cue: Push your knees out
+    priority: 2

@@ -1,0 +1,32 @@
+[project]
+name = "cleanreps"
+version = "0.1.0"
+description = "Real-time exercise form feedback with OpenCV and MediaPipe"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "mediapipe==0.10.35",
+    "opencv-python>=4.9",
+    "numpy>=1.26",
+    "pyyaml>=6.0",
+    "pyttsx3>=2.90",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8"]
+
+[project.scripts]
+cleanreps = "cleanreps.__main__:main"
+
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["cleanreps*"]
+
+[tool.setuptools.package-data]
+cleanreps = ["rules/*.yaml"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

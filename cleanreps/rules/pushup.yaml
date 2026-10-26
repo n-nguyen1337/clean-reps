@@ -1,0 +1,31 @@
+# Push-up. Primary metric: elbow angle (shoulder-elbow-wrist), ~170 locked out.
+name: Push-up
+camera_hint: Side view, whole body in frame.
+primary_metric: elbow_angle
+top_threshold: 155
+bottom_threshold: 110
+hysteresis: 8
+min_excursion: 25
+partial_cue: Go lower
+
+rules:
+  - id: depth
+    metric: elbow_angle
+    aggregate: min
+    max: 95
+    cue: Lower your chest more
+    priority: 3
+
+  - id: hip_sag
+    metric: hip_offset    # fraction of shoulder-ankle length; + is below the line
+    max: 0.06
+    min_frames: 4
+    cue: Squeeze your core, hips are sagging
+    priority: 2
+
+  - id: hip_pike
+    metric: hip_offset
+    min: -0.08
+    min_frames: 4
+    cue: Lower your hips
+    priority: 2
