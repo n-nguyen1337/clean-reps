@@ -30,6 +30,13 @@ def parse_args(argv=None) -> argparse.Namespace:
                    help="save raw frames to an .mp4 for replay/testing")
     p.add_argument("--headless", action="store_true",
                    help="replay a video file with no window and print the summary")
+    p.add_argument("--web", action="store_true",
+                   help="open a browser viewer to analyze and replay clips in --video-dir")
+    p.add_argument("--export-site", metavar="DIR",
+                   help="pre-render --clips (as -e) into a static site, e.g. for GitHub Pages")
+    p.add_argument("--clips", nargs="+", metavar="VIDEO", help="video files for --export-site")
+    p.add_argument("--video-dir", default="vids", help="folder of clips for --web")
+    p.add_argument("--port", type=int, default=8000, help="port for --web")
     return p.parse_args(argv)
 
 
@@ -92,6 +99,16 @@ def run_live(args: argparse.Namespace) -> Session:
 
 def main(argv=None) -> None:
     args = parse_args(argv)
+    if args.web:
+        from .web import serve
+        serve(args.video_dir, args.model, args.port)
+        return
+    if args.export_site:
+        from .web import export_site
+        if not args.clips:
+            raise SystemExit("--export-site needs --clips VIDEO [VIDEO ...]")
+        print(f"Site written to {export_site(args.export_site, args.clips, [args.exercise], args.model)}")
+        return
     if args.headless:
         if args.source.isdigit():
             raise SystemExit("--headless needs a video file as --source")

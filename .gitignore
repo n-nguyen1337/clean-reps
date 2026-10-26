@@ -12,3 +12,7 @@ recordings/
 
 # Test clips can be large; commit them deliberately (or use Git LFS)
 tests/clips/*.mp4
+
+# Source clips (may be licensed for local use only) and the generated demo site
+vids/
+site/
