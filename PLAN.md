@@ -113,7 +113,7 @@ tests/            # replay recorded clips, assert rep counts and faults
 
 ## Open questions
 
-- [ ] **Platform:** a Python desktop app (current plan) or a browser/mobile app?
+- [ ] **Platform:** a Python desktop app (current plan) or a browser/mobile app? Product options: [PLAN-web.md](PLAN-web.md), [PLAN-mobile.md](PLAN-mobile.md)
 - [ ] **Goal:** a personal tool, a portfolio project, or the seed of a product?
 - [ ] **Exercises:** are squat, push-up and curl right, or should others come first (deadlift, overhead press, lunges)?
 - [ ] **Feedback:** is on-screen text plus voice enough, or should progress be tracked across sessions?
