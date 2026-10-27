@@ -2,17 +2,19 @@
 
 import { createClient, type User } from "npm:@supabase/supabase-js@2.118.0";
 
-// A leading "*." matches any subdomain, for Cloudflare Pages preview deployments.
+// A "*" right after the scheme matches one DNS label (no dots), for Cloudflare
+// Pages preview deployments like https://<branch>.clean-reps.pages.dev.
 const ALLOWED_ORIGINS = (Deno.env.get("ALLOWED_ORIGINS")
   ?? "https://clean-reps.pages.dev,https://*.clean-reps.pages.dev,http://localhost:5173")
   .split(",").map((o) => o.trim()).filter(Boolean);
 
 function allowed(origin: string): boolean {
   return ALLOWED_ORIGINS.some((o) => {
-    const star = o.indexOf("://*.");
+    const star = o.indexOf("://*");
     if (star < 0) return o === origin;
     const [scheme, suffix] = [o.slice(0, star + 3), o.slice(star + 4)];
-    return origin.startsWith(scheme) && origin.endsWith(suffix) && !origin.slice(scheme.length, -suffix.length).includes("/");
+    if (!origin.startsWith(scheme) || !origin.endsWith(suffix)) return false;
+    return /^[a-z0-9-]+$/i.test(origin.slice(scheme.length, origin.length - suffix.length));
   });
 }
 
