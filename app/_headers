@@ -1,0 +1,16 @@
+# Cloudflare Pages response headers (copied into dist/ by Vite).
+
+# Fingerprinted by Vite: safe to cache forever.
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
+
+# Large and rarely changed, but not fingerprinted: cache for a week.
+/mediapipe/*
+  Cache-Control: public, max-age=604800
+/models/*
+  Cache-Control: public, max-age=604800
+
+/*
+  Permissions-Policy: camera=(self), microphone=(), geolocation=()
+  Referrer-Policy: strict-origin-when-cross-origin
+  X-Content-Type-Options: nosniff
