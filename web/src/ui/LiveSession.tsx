@@ -3,7 +3,7 @@ import { isClean, type Body, type Cue, type ExerciseUpdate, type RepResult } fro
 import { createExercise } from "../engine/exercises";
 import { CueManager, type Speaker } from "../engine/feedback";
 import { PoseSmoother, SKELETON, type PoseFrame } from "../engine/pose";
-import { Session, type SessionSummary } from "../engine/session";
+import { Session, type SessionRecord } from "../engine/session";
 import { createLandmarker, toPoseFrame, type ModelVariant } from "../pose/landmarker";
 
 interface Props {
@@ -11,7 +11,7 @@ interface Props {
   body: Body;
   model: ModelVariant;
   speaker: Speaker;
-  onDone: (summary: SessionSummary) => void;
+  onDone: (record: SessionRecord) => void;
 }
 
 interface Hud {
@@ -115,6 +115,7 @@ export function LiveSession({ exercise, body, model, speaker, onDone }: Props) {
 
         const pose = smoother.apply(toPoseFrame(landmarker.detectForVideo(video, ts), w, h, ts));
         const update = ex.update(pose, t);
+        sessionRef.current.sample(t, update.metrics);
         if (update.completed) {
           sessionRef.current.add(update.completed);
           lastRep = update.completed;
@@ -205,7 +206,10 @@ export function LiveSession({ exercise, body, model, speaker, onDone }: Props) {
         )}
         <div className="controls">
           <button className="ghost" onClick={() => setShowMetrics((s) => !s)}>{showMetrics ? "Hide" : "Show"} metrics</button>
-          <button className="primary" onClick={() => onDone(sessionRef.current.summary())}>Finish</button>
+          <button className="primary" onClick={() => {
+            const s = sessionRef.current;
+            onDone({ summary: s.summary(), reps: s.reps, trace: s.trace, config, body });
+          }}>Finish</button>
         </div>
       </div>
     </div>

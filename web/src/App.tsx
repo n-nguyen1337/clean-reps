@@ -2,9 +2,10 @@ import { useMemo, useState } from "react";
 import { AVERAGE_BODY, BODY_SIZES, type Body, type BodySize } from "./engine/exercise";
 import { EXERCISE_KEYS, createExercise } from "./engine/exercises";
 import { Speaker } from "./engine/feedback";
-import type { SessionSummary } from "./engine/session";
+import type { SessionRecord } from "./engine/session";
 import { defaultModel, type ModelVariant } from "./pose/landmarker";
 import { LiveSession } from "./ui/LiveSession";
+import { ApiKeyField, Summary } from "./ui/Summary";
 
 const BODY_KEY = "cleanreps.body";
 
@@ -31,7 +32,7 @@ function saveBody(body: Body) {
   }
 }
 
-type Screen = { kind: "pick" } | { kind: "live"; exercise: string } | { kind: "summary"; summary: SessionSummary };
+type Screen = { kind: "pick" } | { kind: "live"; exercise: string } | { kind: "summary"; record: SessionRecord };
 
 export function App() {
   const configs = useMemo(() => Object.fromEntries(EXERCISE_KEYS.map((k) => [k, createExercise(k).config])), []);
@@ -56,37 +57,11 @@ export function App() {
 
   if (screen.kind === "live") {
     return <LiveSession exercise={screen.exercise} body={body} model={model} speaker={speaker}
-      onDone={(summary) => setScreen({ kind: "summary", summary })} />;
+      onDone={(record) => setScreen({ kind: "summary", record })} />;
   }
 
   if (screen.kind === "summary") {
-    const s = screen.summary;
-    const cfg = configs[s.exercise];
-    const label = (id: string) => id === "partial" ? "Partial reps" : cfg.rules.find((r) => r.id === id)?.cue ?? id;
-    const faults = Object.entries(s.faults).sort((a, b) => b[1] - a[1]);
-    return (
-      <main className="page">
-        <h1>{cfg.name}</h1>
-        <div className="stats">
-          <div><b>{s.reps}</b><span>reps</span></div>
-          <div><b>{s.cleanReps}</b><span>clean</span></div>
-          <div><b>{s.partialReps}</b><span>partial</span></div>
-        </div>
-        {s.avgDownS !== null && <p>Tempo: {s.avgDownS}s down / {s.avgUpS}s up</p>}
-        {faults.length > 0 && (
-          <>
-            <h2>What to work on</h2>
-            <ul className="faults">
-              {faults.map(([id, n]) => <li key={id}><span>{label(id)}</span><b>{n}×</b></li>)}
-            </ul>
-          </>
-        )}
-        <div className="row">
-          <button className="primary" onClick={start}>Go again</button>
-          <button className="ghost" onClick={() => setScreen({ kind: "pick" })}>Change exercise</button>
-        </div>
-      </main>
-    );
+    return <Summary record={screen.record} onAgain={start} onPick={() => setScreen({ kind: "pick" })} />;
   }
 
   return (
@@ -134,6 +109,7 @@ export function App() {
           <option value="full">Full (more accurate)</option>
         </select>
       </label>
+      <ApiKeyField />
 
       <button className="primary big" onClick={start}>Start</button>
       <p className="disclaimer">Not medical advice. Cues are starting points; stop if anything hurts.</p>

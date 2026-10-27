@@ -36,7 +36,7 @@ The Python package in this repo stays as the **lab**: threshold tuning, labeled 
 ## Repo layout
 
 ```
-cleanReps/
+clean-reps/
   cleanreps/              # Python lab (existing)
   rules/                  # single source of truth (YAML), compiled to JSON for the app
   tools/export_fixtures.py
@@ -109,6 +109,7 @@ cleanReps/
 | 2026-10-26 | Target home workout users; free, no accounts | Side project; simplest audience and setup |
 | 2026-10-26 | Pose runs on-device in the browser; no backend | Privacy, zero running cost |
 | 2026-10-26 | Python package is the reference implementation | Tune once; parity tests keep the TS port honest |
+| 2026-10-27 | Optional AI coaching with the user's own Anthropic API key, called from the browser | Keeps no backend and zero running cost; only per-rep numbers are sent, never video. Charts and insights stay local and free |
 
 ## Changelog
 
