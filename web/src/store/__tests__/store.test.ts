@@ -9,7 +9,7 @@ import { toSessionRecord, toSetRecord, type SetRecord } from "../record";
 const config: ExerciseConfig = {
   name: "Squat", primaryMetric: "knee_angle", topThreshold: 160, bottomThreshold: 120,
   hysteresis: 8, minExcursion: 25, partialCue: "Go deeper", cameraHint: "", proportions: {},
-  rules: [{ id: "depth", metric: "knee_angle", aggregate: "min", max: 100, min: null, cue: "Squat a little deeper", priority: 1, minFrames: 3 }],
+  rules: [{ id: "depth", metric: "knee_angle", aggregate: "min", max: 100, min: null, cue: "Squat a little deeper", priority: 1, minFrames: 3, noRep: false }],
 };
 
 function rep(i: number, bottom: number, faults: string[] = []): RepResult {

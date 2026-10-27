@@ -54,7 +54,7 @@ def draw_hud(img: np.ndarray, config: ExerciseConfig, update: ExerciseUpdate,
         elif last_rep.counted:
             verdict, color = f"Rep {last_rep.index}: {', '.join(last_rep.faults)}", AMBER
         else:
-            verdict, color = "No rep: partial", RED
+            verdict, color = f"No rep: {', '.join(last_rep.faults)}", RED
         _text(img, verdict, (20, h - 30), 0.7, color=color)
 
     if not update.tracking:

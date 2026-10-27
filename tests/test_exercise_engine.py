@@ -86,6 +86,18 @@ def test_rep_rule_on_aggregate():
     assert deep.clean
 
 
+def test_no_rep_rule_stops_rep_counting():
+    hinge = Rule(id="hinge", metric="lean", aggregate="max", max=100, no_rep=True, cue="Hips back", priority=3)
+    ex = make_exercise(hinge)
+    angles = rep_curve(90)
+    updates = run(ex, np.concatenate([angles, angles]), np.concatenate([np.full(60, 150.0), np.full(60, 60.0)]))
+    blocked, good = completed(updates)
+    assert not blocked.counted and blocked.index is None and blocked.faults == ["hinge"]
+    assert good.clean and good.index == 1
+    assert ex.reps == 1
+    assert [c.id for u in updates[:60] for c in u.cues] == ["hinge"]
+
+
 def test_live_rule_needs_consecutive_frames_and_cues_once():
     lean = Rule(id="lean", metric="lean", max=45, cue="Chest up", min_frames=3)
     ex = make_exercise(lean)

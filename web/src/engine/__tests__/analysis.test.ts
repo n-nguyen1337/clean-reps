@@ -4,7 +4,7 @@ import type { ExerciseConfig, RepResult, Rule } from "../exercise";
 import { Session } from "../session";
 
 const rule = (r: Partial<Rule> & Pick<Rule, "id" | "metric" | "cue">): Rule =>
-  ({ priority: 1, min: null, max: null, aggregate: null, minFrames: 3, ...r });
+  ({ priority: 1, min: null, max: null, aggregate: null, minFrames: 3, noRep: false, ...r });
 
 const config: ExerciseConfig = {
   name: "Squat", primaryMetric: "knee_angle", topThreshold: 160, bottomThreshold: 120,

@@ -14,6 +14,9 @@ its metric falls outside ``[min, max]``:
 - Rep rules (``aggregate: min|max``) are checked once, when the rep ends,
   against the metric's extreme over the whole rep.
 
+A rule with ``no_rep: true`` also stops the rep from counting when it fires,
+for movements that aren't the exercise at all (a squat with no hip bend).
+
 An optional ``proportions`` section shifts rule limits for the user's body
 proportions (see ``Body``).
 """
@@ -54,6 +57,7 @@ class Rule:
     max: float | None = None
     aggregate: str | None = None  # None (live), "min" or "max"
     min_frames: int = 3
+    no_rep: bool = False  # a rep with this fault doesn't count
 
     def violated(self, value: float | None) -> bool:
         if value is None or math.isnan(value):
@@ -278,7 +282,6 @@ class Exercise(ABC):
     def _complete(self, t: float) -> tuple[RepResult, list[Cue]]:
         rep, self._rep = self._rep, None
         self.phase = Phase.TOP
-        self.reps += 1
 
         cues = []
         for rule in self._rep_rules:
@@ -290,6 +293,10 @@ class Exercise(ABC):
                 rep.faults.append(rule.id)
                 cues.append(Cue(rule.id, rule.cue, rule.priority))
 
+        if any(r.no_rep and r.id in rep.faults for r in self.config.rules):
+            return RepResult(False, None, rep.start_s, rep.bottom_s, t, rep.faults, rep.extremes), cues
+
+        self.reps += 1
         result = RepResult(True, self.reps, rep.start_s, rep.bottom_s, t, rep.faults, rep.extremes)
         if result.clean:
             cues.append(Cue("good_rep", "Good rep", 0))
