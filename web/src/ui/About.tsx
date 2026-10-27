@@ -38,8 +38,10 @@ export function About({ configs }: { configs: Record<string, ExerciseConfig> }) 
         <li>Use the Lite model if your phone struggles.</li>
       </ul>
 
-      <p className="disclaimer">Not medical advice. Cues are starting points; stop if anything hurts.</p>
-      <p className="disclaimer">cleanReps v{__APP_VERSION__}</p>
+      <footer className="about-footer">
+        <p className="disclaimer">Not medical advice. Cues are starting points; stop if anything hurts.</p>
+        <p className="disclaimer">cleanReps v{__APP_VERSION__}</p>
+      </footer>
     </main>
   );
 }

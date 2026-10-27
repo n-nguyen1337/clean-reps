@@ -13,6 +13,7 @@
   --series-1: #3987e5;
   --series-2: #d95926;
   --grid: #232640;
+  --logo-motion: #8b87f0;
   /* Layout. */
   --space-1: 4px;
   --space-2: 8px;
@@ -259,20 +260,20 @@ a.button.primary { background: var(--accent); border-color: var(--accent); color
 .text-link { color: var(--accent); font-weight: 500; text-decoration: none; }
 
 .shell .page { padding-top: var(--space-5); padding-bottom: calc(var(--tabbar-h) + var(--safe-bottom) + var(--space-6)); }
-.tabbar { position: fixed; z-index: 5; left: 0; right: 0; bottom: 0; display: grid; grid-template-columns: repeat(3, 1fr);
+.tabbar { position: fixed; z-index: 5; left: 0; right: 0; bottom: 0; display: grid; grid-template-columns: repeat(4, 1fr);
   height: calc(var(--tabbar-h) + var(--safe-bottom)); padding-bottom: var(--safe-bottom);
   background: color-mix(in srgb, var(--bg) 92%, transparent); backdrop-filter: blur(12px); border-top: 1px solid var(--border); }
 .tabbar a { display: grid; justify-items: center; align-content: center; gap: 2px; min-height: 48px; color: var(--muted); text-decoration: none; font-size: 0.75rem; font-weight: 500; }
 .tabbar a.active { color: var(--accent); }
+.tabbar .logo { display: none; } /* phones show it in the Home header instead */
 
 .icon-btn { display: inline-grid; place-content: center; width: 44px; height: 44px; flex: none; border-radius: 50%; color: var(--text); text-decoration: none; font-size: 1.4rem; line-height: 1; }
 .icon-btn:hover { background: var(--surface); }
-.app-header, .sub-header { display: flex; align-items: center; gap: var(--space-2); margin: calc(-1 * var(--space-2)) 0 var(--space-3); }
-.app-header { justify-content: space-between; }
-.app-header .icon-btn { margin-right: -10px; }
-.sub-header .icon-btn { margin-left: -12px; }
-.page .sub-header h1 { margin: 0; font-size: 1.5rem; }
-.wordmark { font-weight: 800; font-size: 1.25rem; letter-spacing: -0.01em; }
+.app-header { display: flex; align-items: center; margin: calc(-1 * var(--space-2)) 0 var(--space-3); }
+.logo { display: inline-flex; align-items: center; gap: var(--space-2); min-height: 44px; color: var(--text); text-decoration: none; }
+.logo-word { font-family: Bahnschrift, "DIN Condensed", "Arial Narrow", system-ui, sans-serif; font-stretch: condensed; font-style: italic;
+  font-weight: 800; font-size: 1.4rem; letter-spacing: 0.01em; line-height: 1; }
+.logo-word b { color: var(--accent); font-weight: 600; }
 
 /* Home. */
 .hero h1, .welcome h1 { font-size: 1.9rem; line-height: 1.15; letter-spacing: -0.01em; margin: var(--space-2) 0 var(--space-3); }
@@ -303,6 +304,8 @@ a.button.primary { background: var(--accent); border-color: var(--accent); color
 /* About. */
 .about-page p { line-height: 1.55; margin: 0 0 var(--space-3); }
 .about-page .steps { margin-top: 0; }
+.about-footer { display: grid; gap: var(--space-1); margin-top: var(--space-6); padding-top: var(--space-4); border-top: 1px solid var(--border); }
+.about-page .about-footer p { margin: 0; }
 .cards { list-style: none; padding: 0; margin: 0; display: grid; gap: var(--space-2); }
 .cards li { display: grid; gap: var(--space-1); padding: var(--space-3) var(--space-4); background: var(--surface); border: 1px solid var(--border); border-radius: 12px; }
 .cards span { color: var(--muted); font-size: 0.9rem; line-height: 1.45; }
@@ -328,6 +331,8 @@ a.button.primary { background: var(--accent); border-color: var(--accent); color
     display: flex; justify-content: center; gap: var(--space-2); }
   .tabbar a { grid-auto-flow: column; gap: var(--space-2); padding: 0 var(--space-4); font-size: 0.95rem; }
   .tabbar a.active { box-shadow: inset 0 -2px 0 var(--accent); }
+  .tabbar .logo { display: inline-flex; margin-right: var(--space-5); color: var(--text); }
+  .app-header { display: none; }
   .shell .page { padding-top: var(--space-6); padding-bottom: var(--space-6); }
   .page.wide { max-width: 960px; }
   .chart-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: var(--space-5); }

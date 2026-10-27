@@ -33,9 +33,9 @@ describe("parseRoute", () => {
 });
 
 describe("tabOf", () => {
-  it("groups achievements and past sets under Progress, and Settings under no tab", () => {
+  it("groups achievements and past sets under Progress, and Settings under its own tab", () => {
     expect(tabOf({ page: "achievements" })).toBe("progress");
     expect(tabOf({ page: "set", id: "x" })).toBe("progress");
-    expect(tabOf({ page: "settings" })).toBeNull();
+    expect(tabOf({ page: "settings" })).toBe("settings");
   });
 });

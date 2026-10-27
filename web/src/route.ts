@@ -10,7 +10,7 @@ export type Route =
   | { page: "about" }
   | { page: "settings" };
 
-export type Tab = "home" | "progress" | "about";
+export type Tab = "home" | "progress" | "about" | "settings";
 
 /** Unknown or malformed routes land on Home. */
 export function parseRoute(hash: string): Route {
@@ -34,13 +34,13 @@ export function routeHref(route: Route): string {
   }
 }
 
-/** The tab a route belongs to; Settings belongs to none. */
-export function tabOf(route: Route): Tab | null {
+/** The tab a route belongs to. */
+export function tabOf(route: Route): Tab {
   switch (route.page) {
     case "home": return "home";
     case "progress": case "achievements": case "set": return "progress";
     case "about": return "about";
-    case "settings": return null;
+    case "settings": return "settings";
   }
 }
 
