@@ -1,8 +1,10 @@
 import { useMemo, useState } from "react";
 import { metricInfo } from "../engine/analysis";
-import { exportHistory, useSets } from "../store/db";
+import type { Progression } from "../store/achievements";
+import { exportHistory } from "../store/db";
 import { bestSet, setPoints, weeklyTotals, weekStreak } from "../store/progress";
 import type { SetRecord } from "../store/record";
+import { AchievementTeaser, LevelCard } from "./Achievements";
 import { shortDate, TrendChart, WeeklyChart } from "./charts";
 
 const topFault = (set: SetRecord): string | null => {
@@ -66,8 +68,10 @@ function ExerciseProgress({ sets, onOpen }: { sets: SetRecord[]; onOpen: (set: S
   );
 }
 
-export function Progress({ onOpen, onBack }: { onOpen: (set: SetRecord) => void; onBack: () => void }) {
-  const sets = useSets();
+export function Progress({ sets, prog, onOpen, onAchievements, onBack }: {
+  sets: SetRecord[] | null; prog: Progression | null;
+  onOpen: (set: SetRecord) => void; onAchievements: () => void; onBack: () => void;
+}) {
   const exercises = useMemo(() => {
     const seen = new Map<string, string>();
     for (const s of sets ?? []) if (!seen.has(s.summary.exercise)) seen.set(s.summary.exercise, s.config.name);
@@ -84,6 +88,13 @@ export function Progress({ onOpen, onBack }: { onOpen: (set: SetRecord) => void;
         <p className="lede">No sets yet. Finish a set and it will show up here.</p>
       ) : (
         <>
+          {prog && (
+            <>
+              <LevelCard level={prog.level} unlocked={Object.keys(prog.unlocked).length} />
+              <AchievementTeaser prog={prog} sets={sets} onOpen={onOpen} onSeeAll={onAchievements} />
+              <h2>Exercises</h2>
+            </>
+          )}
           {exercises.length > 1 && (
             <div className="segmented" style={{ gridTemplateColumns: `repeat(${exercises.length}, 1fr)` }}>
               {exercises.map(([key, name]) => (

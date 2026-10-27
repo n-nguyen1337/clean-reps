@@ -4,7 +4,7 @@
 // are simple: push what changed locally, pull what changed on the server since
 // the last pull, and a deletion on either side wins.
 
-import { db, getMeta, setMeta } from "../store/db";
+import { db, getMeta, keepUnlocksOf, setMeta } from "../store/db";
 import type { SetRecord } from "../store/record";
 
 export interface Remote {
@@ -55,5 +55,7 @@ export async function forgetSyncedSets(): Promise<void> {
   await db.transaction("rw", db.sets, db.meta, async () => {
     await db.sets.filter((s) => !unsynced(s)).delete();
     await setMeta(CURSOR_KEY, null);
+    // The next person on this device shouldn't inherit the account's achievements.
+    await keepUnlocksOf(new Set(await db.sets.toCollection().primaryKeys()));
   });
 }

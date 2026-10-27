@@ -82,6 +82,58 @@ button:disabled { opacity: 0.5; cursor: default; }
 .history .when { color: var(--muted); font-size: 0.85rem; }
 .history button span:last-child { color: var(--muted); font-size: 0.9rem; }
 
+/* Levels and achievements. */
+.bronze { --tier: #c98a4b; }
+.silver { --tier: #c3cad6; }
+.gold { --tier: #f2c94c; }
+.platinum { --tier: #8fe3f0; }
+.title-row.section { margin: 28px 0 10px; }
+.title-row.section h2 { margin: 0; }
+.level-card { display: flex; gap: 14px; align-items: center; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; margin: 20px 0 0; }
+.level-num { flex: none; width: 64px; height: 64px; border-radius: 50%; border: 3px solid var(--accent); display: grid; place-content: center; text-align: center; line-height: 1; }
+.level-num b { font-size: 1.6rem; }
+.level-num span { color: var(--muted); font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.06em; }
+.level-info { flex: 1; min-width: 0; display: grid; gap: 6px; }
+.level-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.level-head b { font-size: 1.15rem; }
+.level-head span { color: var(--muted); font-size: 0.85rem; }
+.xp-bar, .meter { display: block; height: 8px; border-radius: 999px; background: var(--border); overflow: hidden; }
+.xp-bar i, .meter i { display: block; height: 100%; border-radius: inherit; background: var(--accent); }
+.xp-bar i { transition: width 1.2s cubic-bezier(0.2, 0.8, 0.2, 1); }
+.meter { height: 4px; width: 100%; }
+.meter i { background: var(--muted); }
+
+.badges { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 8px; }
+.badges + .hint.small, .badges + .badges { margin-top: 12px; }
+.hint.small + .badges { margin-top: 6px; }
+.badge { display: grid; justify-items: center; align-content: start; gap: 4px; padding: 10px 6px; text-align: center; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; min-width: 0; }
+.badge b { font-size: 0.8rem; line-height: 1.2; font-weight: 600; overflow-wrap: anywhere; }
+.badge small { color: var(--muted); font-size: 0.7rem; }
+.badge-ring { width: 48px; height: 48px; border-radius: 50%; display: grid; place-content: center; font-size: 1.5rem; line-height: 1;
+  border: 3px solid var(--tier); background: radial-gradient(circle, color-mix(in srgb, var(--tier) 22%, transparent), transparent 70%); }
+.badge-ring.big { width: 84px; height: 84px; font-size: 2.6rem; border-width: 4px; }
+.badge.locked b { color: var(--muted); }
+.badge.locked .badge-ring, .badge-ring.locked { filter: grayscale(1); opacity: 0.4; }
+
+.sheet-backdrop { position: fixed; inset: 0; z-index: 10; background: rgba(0, 0, 0, 0.6); display: flex; align-items: flex-end; justify-content: center; }
+.sheet { width: 100%; max-width: 560px; background: var(--surface); border: 1px solid var(--border); border-bottom: 0; border-radius: 16px 16px 0 0;
+  padding: 24px 16px max(24px, env(safe-area-inset-bottom)); display: grid; justify-items: center; gap: 8px; text-align: center; }
+.sheet h2 { margin: 6px 0 0; font-size: 1.3rem; }
+.sheet p { margin: 0; line-height: 1.45; }
+.sheet .meter { max-width: 240px; height: 6px; }
+.sheet .row { justify-content: center; margin-top: 8px; }
+.tier-line { color: var(--muted); font-size: 0.85rem; }
+
+.set-progress { display: grid; gap: 8px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; margin-top: 16px; }
+.set-progress .level-head b { color: var(--accent); }
+.level-up { margin: 0; font-size: 1.25rem; font-weight: 700; color: var(--accent); animation: pop 0.5s ease-out both 0.6s; }
+@keyframes pop { from { transform: scale(0.85); opacity: 0; } to { transform: none; opacity: 1; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .xp-bar i { transition: none; }
+  .level-up { animation: none; }
+}
+
 /* Summary: takeaways, AI coach, charts. */
 .insights { list-style: none; padding: 0; margin: 0; display: grid; gap: 8px; }
 .insights li { display: flex; gap: 10px; align-items: flex-start; line-height: 1.45; }

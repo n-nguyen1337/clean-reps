@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useAccount } from "./cloud/account";
 import { AVERAGE_BODY, BODY_SIZES, type Body, type BodySize } from "./engine/exercise";
 import { EXERCISE_KEYS, createExercise } from "./engine/exercises";
@@ -6,10 +6,13 @@ import { Speaker } from "./engine/feedback";
 import type { SessionRecord } from "./engine/session";
 import type { Playback } from "./playback/playback";
 import { defaultModel, type ModelVariant } from "./pose/landmarker";
-import { deleteSet, saveSet, useSets } from "./store/db";
+import { ACHIEVEMENTS, progression, setProgress } from "./store/achievements";
+import { deleteSet, saveSet, saveUnlocks, useSets, useUnlocks } from "./store/db";
+import { setXp } from "./store/level";
 import { previousSet } from "./store/progress";
 import { toSessionRecord, toSetRecord, type SetRecord } from "./store/record";
 import { AccountPanel } from "./ui/AccountPanel";
+import { AchievementBoard, EarnedInSet, SetProgressPanel } from "./ui/Achievements";
 import { LiveSession } from "./ui/LiveSession";
 import { Progress } from "./ui/Progress";
 import { Summary } from "./ui/Summary";
@@ -61,6 +64,7 @@ type Screen =
   | { kind: "live"; exercise: string }
   | { kind: "summary"; record: SessionRecord; set: SetRecord; playback: Playback | null }
   | { kind: "progress" }
+  | { kind: "achievements" }
   | { kind: "past"; set: SetRecord };
 
 export function App() {
@@ -73,7 +77,16 @@ export function App() {
   const [body, setBody] = useState<Body>(loadBody);
   const [replay, setReplay] = useState(loadReplay);
   const sets = useSets();
+  const unlocks = useUnlocks();
   const account = useAccount();
+  const prog = useMemo(() => sets && unlocks && progression(sets, unlocks), [sets, unlocks]);
+  // Keep every unlock on the device, so deleting the set that earned it doesn't take it away.
+  useEffect(() => {
+    if (prog) saveUnlocks(prog.unlocked).catch(() => {});
+  }, [prog]);
+  const summarySet = screen.kind === "summary" && screen.record.reps.length > 0 ? screen.set : null;
+  const setProg = useMemo(() => summarySet && sets && unlocks && setProgress(sets, summarySet, unlocks),
+    [summarySet, sets, unlocks]);
 
   const setBodySize = (segment: keyof Body, size: BodySize) => {
     const next = { ...body, [segment]: size };
@@ -98,7 +111,8 @@ export function App() {
 
   if (screen.kind === "summary") {
     return (
-      <Summary record={screen.record} previous={sets && previousSet(sets, screen.set)} playback={screen.playback}>
+      <Summary record={screen.record} previous={sets && previousSet(sets, screen.set)} playback={screen.playback}
+        progress={setProg && <SetProgressPanel progress={setProg} />}>
         <button className="primary" onClick={start}>Go again</button>
         <button className="ghost" onClick={() => setScreen({ kind: "pick" })}>Change exercise</button>
       </Summary>
@@ -106,13 +120,21 @@ export function App() {
   }
 
   if (screen.kind === "progress") {
-    return <Progress onOpen={(set) => setScreen({ kind: "past", set })} onBack={() => setScreen({ kind: "pick" })} />;
+    return <Progress sets={sets} prog={prog} onOpen={(set) => setScreen({ kind: "past", set })}
+      onAchievements={() => setScreen({ kind: "achievements" })} onBack={() => setScreen({ kind: "pick" })} />;
+  }
+
+  if (screen.kind === "achievements" && prog && sets) {
+    return <AchievementBoard prog={prog} sets={sets} onOpen={(set) => setScreen({ kind: "past", set })}
+      onBack={() => setScreen({ kind: "progress" })} />;
   }
 
   if (screen.kind === "past") {
     const { set } = screen;
+    const earned = prog ? ACHIEVEMENTS.filter((d) => prog.unlocked[d.id]?.setId === set.id) : [];
     return (
-      <Summary record={toSessionRecord(set)} previous={sets && previousSet(sets, set)}>
+      <Summary record={toSessionRecord(set)} previous={sets && previousSet(sets, set)}
+        progress={<EarnedInSet xp={setXp(set.summary)} earned={earned} />}>
         <button className="primary" onClick={() => setScreen({ kind: "progress" })}>Back to progress</button>
         <button className="ghost danger" onClick={async () => {
           if (!confirm("Delete this set from your history?")) return;
