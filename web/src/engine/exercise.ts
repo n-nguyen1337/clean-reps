@@ -5,10 +5,23 @@
 // coming out of it. Rules flag a fault when their metric leaves [min, max]:
 // live rules (no aggregate) are checked every frame during a rep and must be
 // violated for minFrames consecutive frames; rep rules (aggregate: min|max)
-// are checked once, when the rep ends, against the metric's extreme.
+// are checked once, when the rep ends, against the metric's extreme. An
+// optional `proportions` section shifts rule limits for the user's Body.
 
 export const LOST_CUE_AFTER_S = 1.0;
 export const LOST_ABORT_AFTER_S = 2.0;
+
+export const BODY_SIZES = ["short", "average", "long"] as const;
+export type BodySize = (typeof BODY_SIZES)[number];
+const BODY_SEGMENTS = ["femur", "torso"] as const;
+
+/** The user's limb proportions, relative to average. */
+export interface Body {
+  femur: BodySize;
+  torso: BodySize;
+}
+
+export const AVERAGE_BODY: Body = { femur: "average", torso: "average" };
 
 export type Phase = "top" | "descending" | "bottom" | "ascending";
 export type Metrics = Record<string, number | null>;
@@ -34,6 +47,8 @@ export interface ExerciseConfig {
   partialCue: string | null;
   cameraHint: string;
   rules: Rule[];
+  /** segment -> size -> rule id -> amount added to that rule's min and max */
+  proportions: Partial<Record<keyof Body, Partial<Record<BodySize, Record<string, number>>>>>;
 }
 
 export interface Cue {
@@ -92,11 +107,39 @@ export function parseConfig(data: Record<string, any>): ExerciseConfig {
     partialCue: data.partial_cue ?? null,
     cameraHint: data.camera_hint ?? "",
     rules,
+    proportions: data.proportions ?? {},
   };
   if (cfg.bottomThreshold >= cfg.topThreshold) {
     throw new Error("bottom_threshold must be below top_threshold");
   }
+  const ruleIds = new Set(rules.map((r) => r.id));
+  for (const [segment, sizes] of Object.entries(cfg.proportions)) {
+    if (!(BODY_SEGMENTS as readonly string[]).includes(segment)) {
+      throw new Error(`proportions: unknown segment ${JSON.stringify(segment)}`);
+    }
+    for (const [size, shifts] of Object.entries(sizes ?? {})) {
+      if (!(BODY_SIZES as readonly string[]).includes(size)) {
+        throw new Error(`proportions.${segment}: unknown size ${JSON.stringify(size)}`);
+      }
+      const unknown = Object.keys(shifts).filter((id) => !ruleIds.has(id)).sort();
+      if (unknown.length) throw new Error(`proportions.${segment}.${size}: unknown rules ${unknown.join(", ")}`);
+    }
+  }
   return cfg;
+}
+
+/** The config with rule limits shifted for the given proportions. */
+export function forBody(cfg: ExerciseConfig, body: Body): ExerciseConfig {
+  const shift: Record<string, number> = {};
+  for (const segment of BODY_SEGMENTS) {
+    for (const [id, amount] of Object.entries(cfg.proportions[segment]?.[body[segment]] ?? {})) {
+      shift[id] = (shift[id] ?? 0) + amount;
+    }
+  }
+  const rules = cfg.rules.map((r) => r.id in shift
+    ? { ...r, min: r.min === null ? null : r.min + shift[r.id], max: r.max === null ? null : r.max + shift[r.id] }
+    : r);
+  return { ...cfg, rules };
 }
 
 /** Accumulates metric extremes and live-rule faults over one rep. */

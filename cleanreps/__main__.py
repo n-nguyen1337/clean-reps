@@ -9,7 +9,7 @@ from datetime import datetime
 import cv2
 
 from .capture import Recorder, VideoSource
-from .exercises import EXERCISES
+from .exercises import BODY_SIZES, EXERCISES, Body
 from .feedback import CueManager, Speaker
 from .pipeline import Pipeline, replay
 from .pose import MODEL_VARIANTS
@@ -24,6 +24,10 @@ def parse_args(argv=None) -> argparse.Namespace:
     p.add_argument("-e", "--exercise", choices=sorted(EXERCISES), default="squat")
     p.add_argument("-s", "--source", default="0", help="webcam index or video file path")
     p.add_argument("-m", "--model", choices=MODEL_VARIANTS, default="full")
+    p.add_argument("--femur", choices=BODY_SIZES, default="average",
+                   help="thigh length relative to your torso; long femurs allow more forward lean")
+    p.add_argument("--torso", choices=BODY_SIZES, default="average",
+                   help="torso length relative to your legs; a short torso allows more forward lean")
     p.add_argument("--no-audio", action="store_true", help="disable spoken cues")
     p.add_argument("--no-mirror", action="store_true", help="don't mirror the webcam preview")
     p.add_argument("--record", nargs="?", const="auto", metavar="PATH",
@@ -43,7 +47,7 @@ def parse_args(argv=None) -> argparse.Namespace:
 def run_live(args: argparse.Namespace) -> Session:
     source_arg = int(args.source) if args.source.isdigit() else args.source
     source = VideoSource(source_arg, mirror=False if args.no_mirror else None)
-    pipe = Pipeline(args.exercise, args.model)
+    pipe = Pipeline(args.exercise, args.model, Body(args.femur, args.torso))
     speaker = None if args.no_audio else Speaker()
     cues = CueManager(speaker=speaker)
     session = Session(args.exercise)
@@ -112,7 +116,7 @@ def main(argv=None) -> None:
     if args.headless:
         if args.source.isdigit():
             raise SystemExit("--headless needs a video file as --source")
-        session = replay(args.source, args.exercise, args.model)
+        session = replay(args.source, args.exercise, args.model, Body(args.femur, args.torso))
     else:
         session = run_live(args)
 

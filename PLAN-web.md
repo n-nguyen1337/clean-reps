@@ -15,7 +15,7 @@ The Python package in this repo stays as the **lab**: threshold tuning, labeled 
 ## Why web
 
 - **No install.** A link is all a user needs, which suits a free side project with no marketing budget.
-- **No store review or fees.** Ship by pushing to GitHub Pages, which the demo site already uses.
+- **No store review or fees.** Ship by pushing to `main`; Cloudflare Pages builds and deploys it.
 - **Laptop and phone.** Many home workouts happen in front of a laptop, which a mobile-only app can't serve.
 - **The TS engine carries over to mobile.** If a native app comes later, the same TypeScript engine can run in React Native.
 
@@ -29,14 +29,14 @@ The Python package in this repo stays as the **lab**: threshold tuning, labeled 
 | Engine | TS port of `geometry`, `filters`, `exercises/base`, `feedback` | Rules compiled from YAML to JSON at build time |
 | Voice | Web Speech API (`speechSynthesis`) | iOS Safari needs a user gesture first: speak on the "Start" tap |
 | Screen | Screen Wake Lock API | Keeps the screen on mid-set; supported in Safari 16.4+ |
-| Storage | IndexedDB (Dexie) | Session history; call `navigator.storage.persist()`; JSON export |
+| Storage | IndexedDB (Dexie) | Set history; `navigator.storage.persist()`; JSON export. Optional sync to Supabase ([PLAN-progress.md](PLAN-progress.md)) |
 | Offline / install | PWA manifest + service worker | Add to home screen; runs offline after the first visit |
-| Hosting | GitHub Pages (HTTPS, which camera access requires) | Replaces the current pre-rendered demo |
+| Hosting | Cloudflare Pages, Git integration (HTTPS, which camera access requires) | Preview URL per branch; the replay demo stays on GitHub Pages |
 
 ## Repo layout
 
 ```
-cleanReps/
+clean-reps/
   cleanreps/              # Python lab (existing)
   rules/                  # single source of truth (YAML), compiled to JSON for the app
   tools/export_fixtures.py
@@ -72,7 +72,7 @@ cleanReps/
 - [x] Live session: skeleton, rep counter, spoken cues
 - [ ] Stay silent when confidence is low
 - [x] Summary (reps, clean vs faulted, top faults)
-- [ ] Local history list
+- [x] Local history list and progress charts
 - [ ] "That cue was wrong" button, stored locally and exportable
 - [ ] Disclaimer on first visit; PWA install prompt
 
@@ -89,7 +89,7 @@ cleanReps/
 ### Later
 - [ ] Wrap with Capacitor for store listings, or reuse the engine in React Native ([PLAN-mobile.md](PLAN-mobile.md))
 - [ ] Run pose in a Web Worker with OffscreenCanvas if the main thread stutters
-- [ ] Optional sync across devices (would need accounts and a backend)
+- [ ] Progression tracking with optional Google sign-in and sync ([PLAN-progress.md](PLAN-progress.md))
 
 ## Risks
 
@@ -109,6 +109,10 @@ cleanReps/
 | 2026-10-26 | Target home workout users; free, no accounts | Side project; simplest audience and setup |
 | 2026-10-26 | Pose runs on-device in the browser; no backend | Privacy, zero running cost |
 | 2026-10-26 | Python package is the reference implementation | Tune once; parity tests keep the TS port honest |
+| 2026-10-27 | Optional AI coaching with the user's own Anthropic API key, called from the browser | Keeps no backend and zero running cost; only per-rep numbers are sent, never video. Charts and insights stay local and free |
+| 2026-10-27 | Progression tracking: local-first history, optional Google sign-in syncing to Supabase | Keeps the no-account start; sync and backup for those who want it. Static hosting stays; RLS replaces server code |
+| 2026-10-27 | AI coach moves to a Supabase Edge Function with the app's key, rate-limited per signed-in user | Supersedes bring-your-own-key: most users don't have an API key. Daily per-user and global caps bound the cost |
+| 2026-10-27 | Host the app on Cloudflare Pages (Git integration) instead of GitHub Pages | Free with unlimited bandwidth, deploys on push with preview URLs per branch, custom headers; replaces the manual gh-pages steps. The old /app/ URL redirects |
 
 ## Changelog
 

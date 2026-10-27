@@ -69,9 +69,56 @@ Phones default to the lite model and other devices to the full one; override wit
 | [web/src/engine/](web/src/engine/) | TS port: geometry, One Euro filter, pose frame, exercises, rule engine, cues, session summary |
 | [web/src/pose/landmarker.ts](web/src/pose/landmarker.ts) | MediaPipe setup and conversion to pixel-space landmarks |
 | [web/src/ui/LiveSession.tsx](web/src/ui/LiveSession.tsx) | Camera loop, skeleton overlay, HUD, wake lock |
-| [web/src/App.tsx](web/src/App.tsx) | Exercise picker and session summary |
+| [web/src/App.tsx](web/src/App.tsx) | Screens: exercise picker, live session, summary, progress |
+| [web/src/store/](web/src/store/) | On-device history (IndexedDB via Dexie) and progress calculations |
+| [web/src/cloud/](web/src/cloud/) | Optional Google sign-in, sync to Supabase |
+| [supabase/](supabase/) | Database migration and Edge Functions (`coach`, `delete-account`) |
 
-Camera access needs `localhost` or HTTPS, so to test on a phone, deploy (e.g. GitHub Pages) or use a tunnel.
+Camera access needs `localhost` or HTTPS, so to test on a phone, use the deployed app or a tunnel.
+
+### Accounts, sync and AI coaching (Supabase)
+
+Optional. Without the two `VITE_SUPABASE_*` variables the app runs local-only: history is still saved on the device, and sign-in and AI coaching are hidden. See [PLAN-progress.md](PLAN-progress.md) for the design.
+
+One-time setup:
+
+1. Create a Supabase project. Copy its URL and anon key into `web/.env.local` (template: [web/.env.example](web/.env.example)). Both are public; row-level security protects the data.
+2. Google sign-in: create an OAuth client (Web application) in Google Cloud. Add `https://<project-ref>.supabase.co/auth/v1/callback` as an authorized redirect URI. Paste the client ID and secret into Supabase under Authentication > Sign In / Providers > Google.
+3. In Supabase under Authentication > URL Configuration, set the Site URL to `https://clean-reps.pages.dev`. Add `http://localhost:5173` and `https://*.clean-reps.pages.dev/**` (preview deployments) to the redirect URLs.
+4. Apply the schema and deploy the functions with the [Supabase CLI](https://supabase.com/docs/guides/cli):
+
+   ```bash
+   npx supabase login
+   npx supabase link --project-ref <project-ref>
+   npx supabase db push
+   npx supabase secrets set ANTHROPIC_API_KEY=sk-ant-...   # optional: COACH_DAILY_LIMIT=10 COACH_GLOBAL_DAILY_LIMIT=500 ALLOWED_ORIGINS=...
+   npx supabase functions deploy coach
+   npx supabase functions deploy delete-account
+   ```
+
+5. Keep the free project awake: in the GitHub repo, add Actions variables `SUPABASE_URL` and `SUPABASE_ANON_KEY` for [.github/workflows/supabase-keepalive.yml](.github/workflows/supabase-keepalive.yml).
+
+The AI coach calls Claude Haiku with your key from the `coach` function. Each signed-in user gets `COACH_DAILY_LIMIT` reviews per 24 hours, and `COACH_GLOBAL_DAILY_LIMIT` caps the total across all users. At about $0.001 per review, the defaults cap spend near $0.50 a day.
+
+### Deploy
+
+Live: https://clean-reps.pages.dev, hosted on Cloudflare Pages through its Git integration. A push to `main` deploys production. A push to any other branch gets a preview at `https://<branch>.clean-reps.pages.dev`. There are no manual deploy steps.
+
+Cloudflare Pages project settings (one-time, in the dashboard under Workers & Pages > Create > Pages > Connect to Git):
+
+| Setting | Value |
+|---|---|
+| Project name | `clean-reps` (gives `clean-reps.pages.dev`; if you pick another name, update `ALLOWED_ORIGINS` and the Supabase URLs) |
+| Production branch | `main` |
+| Framework preset | None |
+| Root directory | `web` |
+| Build command | `npm run build` |
+| Build output directory | `dist` |
+| Environment variables | `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` (Production and Preview) |
+
+The build reads the rules from `../cleanreps/rules` (Cloudflare clones the whole repo) and downloads the pose models. Node comes from [web/.node-version](web/.node-version), and caching and permission headers come from [web/public/_headers](web/public/_headers).
+
+The old address, https://n-nguyen1337.github.io/clean-reps/app/, redirects here. The replay demo stays on GitHub Pages at the site root.
 
 ### Parity with the Python engine
 
@@ -114,7 +161,6 @@ Python unit tests use synthetic metric streams. For end-to-end regression tests,
 - [ ] **Thresholds on real home footage**: the rules were only checked on two stock clips. Record labeled clips from a laptop on a table and a phone propped on the floor ([PLAN.md](PLAN.md) M1–M3).
 
 ### Not built yet
-- [ ] Deploy the web app to GitHub Pages (it would replace the pre-rendered demo site)
 - [ ] Setup flow: placement guidance, full-body-in-frame and camera-angle check, hands-free countdown
 - [ ] Stay silent when landmark confidence is low, instead of cueing on bad data
 - [ ] Session history (IndexedDB) with JSON export

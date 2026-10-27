@@ -37,7 +37,7 @@ The Python package in this repo stays as the **lab**: threshold tuning, labeled 
 ## Repo layout
 
 ```
-cleanReps/
+clean-reps/
   cleanreps/              # Python lab (existing)
   rules/                  # single source of truth (YAML), compiled to JSON for the app
   tools/export_fixtures.py

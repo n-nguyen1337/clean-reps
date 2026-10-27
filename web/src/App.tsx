@@ -1,11 +1,49 @@
 import { useMemo, useState } from "react";
+import { useAccount } from "./cloud/account";
+import { AVERAGE_BODY, BODY_SIZES, type Body, type BodySize } from "./engine/exercise";
 import { EXERCISE_KEYS, createExercise } from "./engine/exercises";
 import { Speaker } from "./engine/feedback";
-import type { SessionSummary } from "./engine/session";
+import type { SessionRecord } from "./engine/session";
 import { defaultModel, type ModelVariant } from "./pose/landmarker";
+import { deleteSet, saveSet, useSets } from "./store/db";
+import { previousSet } from "./store/progress";
+import { toSessionRecord, toSetRecord, type SetRecord } from "./store/record";
+import { AccountPanel } from "./ui/AccountPanel";
 import { LiveSession } from "./ui/LiveSession";
+import { Progress } from "./ui/Progress";
+import { Summary } from "./ui/Summary";
 
-type Screen = { kind: "pick" } | { kind: "live"; exercise: string } | { kind: "summary"; summary: SessionSummary };
+const BODY_KEY = "cleanreps.body";
+
+const BUILD_QUESTIONS: { segment: keyof Body; question: string; hint: string }[] = [
+  { segment: "femur", question: "Your thighs (femurs)", hint: "Compared with your torso. Long femurs need more forward lean." },
+  { segment: "torso", question: "Your torso", hint: "Compared with your legs. A short torso needs more forward lean." },
+];
+
+function loadBody(): Body {
+  try {
+    const saved = JSON.parse(localStorage.getItem(BODY_KEY) ?? "null");
+    if (BODY_SIZES.includes(saved?.femur) && BODY_SIZES.includes(saved?.torso)) return saved;
+  } catch {
+    /* storage unavailable or corrupt: fall back to average */
+  }
+  return AVERAGE_BODY;
+}
+
+function saveBody(body: Body) {
+  try {
+    localStorage.setItem(BODY_KEY, JSON.stringify(body));
+  } catch {
+    /* storage unavailable: the choice lasts this visit only */
+  }
+}
+
+type Screen =
+  | { kind: "pick" }
+  | { kind: "live"; exercise: string }
+  | { kind: "summary"; record: SessionRecord; set: SetRecord }
+  | { kind: "progress" }
+  | { kind: "past"; set: SetRecord };
 
 export function App() {
   const configs = useMemo(() => Object.fromEntries(EXERCISE_KEYS.map((k) => [k, createExercise(k).config])), []);
@@ -14,6 +52,15 @@ export function App() {
   const [exercise, setExercise] = useState(EXERCISE_KEYS[0]);
   const [model, setModel] = useState<ModelVariant>(defaultModel);
   const [voice, setVoice] = useState(true);
+  const [body, setBody] = useState<Body>(loadBody);
+  const sets = useSets();
+  const account = useAccount();
+
+  const setBodySize = (segment: keyof Body, size: BodySize) => {
+    const next = { ...body, [segment]: size };
+    setBody(next);
+    saveBody(next);
+  };
 
   const start = () => {
     speaker.enabled = voice;
@@ -22,44 +69,65 @@ export function App() {
   };
 
   if (screen.kind === "live") {
-    return <LiveSession exercise={screen.exercise} model={model} speaker={speaker}
-      onDone={(summary) => setScreen({ kind: "summary", summary })} />;
+    return <LiveSession exercise={screen.exercise} body={body} model={model} speaker={speaker}
+      onDone={(record) => {
+        const set = toSetRecord(record);
+        if (record.reps.length > 0) saveSet(set).then(account.requestSync).catch(() => {});
+        setScreen({ kind: "summary", record, set });
+      }} />;
   }
 
   if (screen.kind === "summary") {
-    const s = screen.summary;
-    const cfg = configs[s.exercise];
-    const label = (id: string) => id === "partial" ? "Partial reps" : cfg.rules.find((r) => r.id === id)?.cue ?? id;
-    const faults = Object.entries(s.faults).sort((a, b) => b[1] - a[1]);
     return (
-      <main className="page">
-        <h1>{cfg.name}</h1>
-        <div className="stats">
-          <div><b>{s.reps}</b><span>reps</span></div>
-          <div><b>{s.cleanReps}</b><span>clean</span></div>
-          <div><b>{s.partialReps}</b><span>partial</span></div>
-        </div>
-        {s.avgDownS !== null && <p>Tempo: {s.avgDownS}s down / {s.avgUpS}s up</p>}
-        {faults.length > 0 && (
-          <>
-            <h2>What to work on</h2>
-            <ul className="faults">
-              {faults.map(([id, n]) => <li key={id}><span>{label(id)}</span><b>{n}×</b></li>)}
-            </ul>
-          </>
-        )}
-        <div className="row">
-          <button className="primary" onClick={start}>Go again</button>
-          <button className="ghost" onClick={() => setScreen({ kind: "pick" })}>Change exercise</button>
-        </div>
-      </main>
+      <Summary record={screen.record} previous={sets && previousSet(sets, screen.set)}>
+        <button className="primary" onClick={start}>Go again</button>
+        <button className="ghost" onClick={() => setScreen({ kind: "pick" })}>Change exercise</button>
+      </Summary>
+    );
+  }
+
+  if (screen.kind === "progress") {
+    return <Progress onOpen={(set) => setScreen({ kind: "past", set })} onBack={() => setScreen({ kind: "pick" })} />;
+  }
+
+  if (screen.kind === "past") {
+    const { set } = screen;
+    return (
+      <Summary record={toSessionRecord(set)} previous={sets && previousSet(sets, set)}>
+        <button className="primary" onClick={() => setScreen({ kind: "progress" })}>Back to progress</button>
+        <button className="ghost danger" onClick={async () => {
+          if (!confirm("Delete this set from your history?")) return;
+          await deleteSet(set.id);
+          account.requestSync();
+          setScreen({ kind: "progress" });
+        }}>Delete set</button>
+      </Summary>
     );
   }
 
   return (
     <main className="page">
-      <h1>cleanReps</h1>
+      <div className="title-row">
+        <h1>cleanReps</h1>
+        <button className="ghost" onClick={() => setScreen({ kind: "progress" })}>
+          Progress{sets && sets.length > 0 ? ` (${sets.length})` : ""}
+        </button>
+      </div>
       <p className="lede">Rep counting and form cues from your camera. Everything runs on this device; no video leaves it.</p>
+
+      <details className="about">
+        <summary>About cleanReps</summary>
+        <ol>
+          <li><b>Pick an exercise.</b> Squats, push-ups and curls are supported. Each card says where to put the camera.</li>
+          <li><b>Set up the camera.</b> Prop your phone or laptop so your whole body is in frame, then tap Start.</li>
+          <li><b>Train.</b> The app tracks your joints, counts reps, and calls out form issues like a shallow squat or sagging hips. A chime means a clean rep.</li>
+          <li><b>Review.</b> After the set, see per-rep depth, tempo and form charts, plus tips on what to work on next.</li>
+          <li><b>Track progress.</b> Every set is saved, so you can see your reps, form and range of motion change over the weeks.</li>
+        </ol>
+        <p><b>Private by design.</b> Pose tracking runs in your browser, and no video is recorded or uploaded. No account needed: history is saved on this device.</p>
+        <p><b>Optional sign-in.</b> Sign in with Google to back up and sync your history and to get a written AI review of each set. Only the set's numbers leave your device, never video.</p>
+        <p><b>Tips.</b> Use good lighting and a plain background, wear fitted clothes, and keep the camera still. Use the Lite model if your phone struggles.</p>
+      </details>
 
       <h2>Exercise</h2>
       <div className="choices">
@@ -71,6 +139,27 @@ export function App() {
         ))}
       </div>
 
+      {Object.keys(configs[exercise].proportions).length > 0 && (
+        <>
+          <h2>Your build</h2>
+          <p className="lede">Long femurs or a short torso naturally push your chest forward, so lean limits adjust to fit you.</p>
+          {BUILD_QUESTIONS.map(({ segment, question, hint }) => (
+            <div key={segment} className="build">
+              <b>{question}</b>
+              <span>{hint}</span>
+              <div className="segmented">
+                {BODY_SIZES.map((size) => (
+                  <button key={size} className={size === body[segment] ? "selected" : ""}
+                    onClick={() => setBodySize(segment, size)}>
+                    {size === "average" ? "Average / not sure" : size[0].toUpperCase() + size.slice(1)}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ))}
+        </>
+      )}
+
       <h2>Settings</h2>
       <label className="toggle"><input type="checkbox" checked={voice} onChange={(e) => setVoice(e.target.checked)} /> Spoken cues</label>
       <label className="toggle">
@@ -80,6 +169,9 @@ export function App() {
           <option value="full">Full (more accurate)</option>
         </select>
       </label>
+
+      <h2>Account</h2>
+      <AccountPanel />
 
       <button className="primary big" onClick={start}>Start</button>
       <p className="disclaimer">Not medical advice. Cues are starting points; stop if anything hurts.</p>

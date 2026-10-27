@@ -3,7 +3,7 @@
 import numpy as np
 import pytest
 
-from cleanreps.exercises import EXERCISES, Cue, Exercise, ExerciseConfig, Phase, Rule
+from cleanreps.exercises import EXERCISES, Body, Cue, Exercise, ExerciseConfig, Phase, Rule
 from cleanreps.feedback import CueManager
 from cleanreps.session import Session
 
@@ -134,6 +134,41 @@ def test_unknown_metric_in_config_rejected():
 def test_bundled_configs_load(key):
     ex = EXERCISES[key]()
     assert ex.config.rules
+
+
+def lean_limit(body: Body | None) -> float:
+    rules = {r.id: r for r in EXERCISES["squat"](body=body).config.rules}
+    assert rules["depth"].max == 100  # proportions only move the rules they name
+    return rules["torso_lean"].max
+
+
+def test_squat_lean_limit_follows_proportions():
+    assert lean_limit(None) == lean_limit(Body()) == 50
+    assert lean_limit(Body(femur="long", torso="short")) == 65
+    assert lean_limit(Body(femur="short", torso="long")) == 40
+    assert lean_limit(Body(femur="long", torso="long")) == 53
+
+
+def test_proportions_shift_both_limits():
+    cfg = make_exercise(Rule(id="lean", metric="lean", cue="x", min=10, max=40)).config
+    cfg = ExerciseConfig(**{**cfg.__dict__, "proportions": {"femur": {"long": {"lean": 5}}}})
+    rule = cfg.for_body(Body(femur="long")).rules[0]
+    assert (rule.min, rule.max) == (15, 45)
+
+
+def test_bad_body_rejected():
+    with pytest.raises(ValueError):
+        Body(femur="huge")
+
+
+def test_proportions_for_unknown_rule_rejected(tmp_path):
+    path = tmp_path / "x.yaml"
+    path.write_text(
+        "name: X\nprimary_metric: a\ntop_threshold: 160\nbottom_threshold: 100\n"
+        "proportions: {femur: {long: {nope: 5}}}\n"
+    )
+    with pytest.raises(ValueError, match="unknown rules"):
+        ExerciseConfig.from_yaml(path)
 
 
 def test_cue_manager_priority_and_cooldown():

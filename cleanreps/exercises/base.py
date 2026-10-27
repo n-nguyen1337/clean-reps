@@ -13,13 +13,16 @@ its metric falls outside ``[min, max]``:
   immediately.
 - Rep rules (``aggregate: min|max``) are checked once, when the rep ends,
   against the metric's extreme over the whole rep.
+
+An optional ``proportions`` section shifts rule limits for the user's body
+proportions (see ``Body``).
 """
 
 from __future__ import annotations
 
 import math
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from enum import Enum
 from pathlib import Path
 
@@ -30,6 +33,8 @@ from ..pose import PoseFrame
 RULES_DIR = Path(__file__).resolve().parent.parent / "rules"
 LOST_CUE_AFTER_S = 1.0
 LOST_ABORT_AFTER_S = 2.0
+BODY_SEGMENTS = ("femur", "torso")
+BODY_SIZES = ("short", "average", "long")
 
 
 class Phase(str, Enum):
@@ -59,6 +64,19 @@ class Rule:
 
 
 @dataclass(frozen=True)
+class Body:
+    """The user's limb proportions, relative to average."""
+
+    femur: str = "average"
+    torso: str = "average"
+
+    def __post_init__(self):
+        for segment in BODY_SEGMENTS:
+            if getattr(self, segment) not in BODY_SIZES:
+                raise ValueError(f"{segment} must be one of {BODY_SIZES}")
+
+
+@dataclass(frozen=True)
 class ExerciseConfig:
     name: str
     primary_metric: str
@@ -69,6 +87,8 @@ class ExerciseConfig:
     partial_cue: str | None = None
     camera_hint: str = ""
     rules: tuple[Rule, ...] = ()
+    # segment -> size -> rule id -> amount added to that rule's min and max
+    proportions: dict[str, dict[str, dict[str, float]]] = field(default_factory=dict, hash=False)
 
     @classmethod
     def from_yaml(cls, path: str | Path) -> ExerciseConfig:
@@ -80,7 +100,32 @@ class ExerciseConfig:
         cfg = cls(rules=rules, **data)
         if cfg.bottom_threshold >= cfg.top_threshold:
             raise ValueError("bottom_threshold must be below top_threshold")
+        rule_ids = {r.id for r in rules}
+        for segment, sizes in cfg.proportions.items():
+            if segment not in BODY_SEGMENTS:
+                raise ValueError(f"proportions: unknown segment {segment!r}")
+            for size, shifts in sizes.items():
+                if size not in BODY_SIZES:
+                    raise ValueError(f"proportions.{segment}: unknown size {size!r}")
+                if set(shifts) - rule_ids:
+                    raise ValueError(f"proportions.{segment}.{size}: unknown rules {sorted(set(shifts) - rule_ids)}")
         return cfg
+
+    def for_body(self, body: Body) -> ExerciseConfig:
+        """This config with rule limits shifted for the given proportions."""
+        shift: dict[str, float] = {}
+        for segment in BODY_SEGMENTS:
+            for rule_id, amount in self.proportions.get(segment, {}).get(getattr(body, segment), {}).items():
+                shift[rule_id] = shift.get(rule_id, 0.0) + amount
+        rules = tuple(
+            replace(
+                r,
+                min=None if r.min is None else r.min + shift[r.id],
+                max=None if r.max is None else r.max + shift[r.id],
+            ) if r.id in shift else r
+            for r in self.rules
+        )
+        return replace(self, rules=rules)
 
 
 @dataclass(frozen=True)
@@ -162,8 +207,10 @@ class Exercise(ABC):
     key: str
     METRICS: tuple[str, ...]
 
-    def __init__(self, config: ExerciseConfig | None = None):
+    def __init__(self, config: ExerciseConfig | None = None, body: Body | None = None):
         self.config = config or ExerciseConfig.from_yaml(RULES_DIR / f"{self.key}.yaml")
+        if body is not None:
+            self.config = self.config.for_body(body)
         known = set(self.METRICS)
         unknown = {self.config.primary_metric} - known | {r.metric for r in self.config.rules} - known
         if unknown:
