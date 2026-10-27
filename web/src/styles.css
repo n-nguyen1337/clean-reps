@@ -53,8 +53,8 @@ button.big { width: 100%; padding: 16px; font-size: 1.15rem; margin-top: 24px; }
 select { font: inherit; color: inherit; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 6px 8px; }
 .disclaimer { color: var(--muted); font-size: 0.85rem; text-align: center; margin-top: 16px; }
 
-.stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 20px 0; }
-.stats div { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 16px; display: grid; justify-items: center; }
+.stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin: 20px 0; }
+.stats div { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 16px 8px; display: grid; justify-items: center; align-content: center; text-align: center; }
 .stats b { font-size: 2rem; }
 .stats span { color: var(--muted); }
 .faults { list-style: none; padding: 0; margin: 0; display: grid; gap: 8px; }
