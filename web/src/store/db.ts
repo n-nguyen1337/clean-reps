@@ -3,6 +3,7 @@
 
 import Dexie, { liveQuery, type EntityTable } from "dexie";
 import { useEffect, useState } from "react";
+import { mergeUnlocks, type Unlocks } from "./achievements";
 import type { SetRecord } from "./record";
 
 interface Meta {
@@ -51,6 +52,41 @@ export function useSets(): SetRecord[] | null {
     return () => sub.unsubscribe();
   }, []);
   return sets;
+}
+
+const UNLOCKS_KEY = "achievements";
+
+async function readUnlocks(): Promise<Unlocks> {
+  try {
+    return JSON.parse((await getMeta(UNLOCKS_KEY)) ?? "{}");
+  } catch {
+    return {};
+  }
+}
+
+/** Achievements unlocked on this device, kept even after the set that earned them is deleted. */
+export function useUnlocks(): Unlocks | null {
+  const [unlocks, setUnlocks] = useState<Unlocks | null>(null);
+  useEffect(() => {
+    const sub = liveQuery(readUnlocks).subscribe({ next: setUnlocks, error: () => setUnlocks({}) });
+    return () => sub.unsubscribe();
+  }, []);
+  return unlocks;
+}
+
+/** Adds newly found unlocks to the stored ones (the earlier unlock wins). */
+export async function saveUnlocks(found: Unlocks): Promise<void> {
+  await db.transaction("rw", db.meta, async () => {
+    const stored = await readUnlocks();
+    const merged = mergeUnlocks(stored, found);
+    if (JSON.stringify(merged) !== JSON.stringify(stored)) await setMeta(UNLOCKS_KEY, JSON.stringify(merged));
+  });
+}
+
+/** Keeps only the unlocks earned by sets still on the device (run on sign-out, inside its transaction). */
+export async function keepUnlocksOf(setIds: Set<string>): Promise<void> {
+  const kept = Object.fromEntries(Object.entries(await readUnlocks()).filter(([, u]) => setIds.has(u.setId)));
+  await setMeta(UNLOCKS_KEY, Object.keys(kept).length ? JSON.stringify(kept) : null);
 }
 
 export async function exportHistory(): Promise<void> {

@@ -7,7 +7,7 @@ function syncText(s: SyncState): string {
   return s.at ? `Synced at ${s.at.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}` : "Backed up";
 }
 
-/** Sign-in, sync status and account controls for the start screen. */
+/** Sign-in, sync status and account controls for the Settings page. */
 export function AccountPanel() {
   const account = useAccount();
   const [error, setError] = useState<string | null>(null);

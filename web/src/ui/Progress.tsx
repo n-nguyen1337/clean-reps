@@ -1,8 +1,10 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { metricInfo } from "../engine/analysis";
-import { exportHistory, useSets } from "../store/db";
+import type { Progression } from "../store/achievements";
+import { exportHistory } from "../store/db";
 import { bestSet, setPoints, weeklyTotals, weekStreak } from "../store/progress";
 import type { SetRecord } from "../store/record";
+import { AchievementTeaser, LevelCard } from "./Achievements";
 import { shortDate, TrendChart, WeeklyChart } from "./charts";
 
 const topFault = (set: SetRecord): string | null => {
@@ -11,8 +13,12 @@ const topFault = (set: SetRecord): string | null => {
   return id === "partial" ? "Partial reps" : set.config.rules.find((r) => r.id === id)?.cue ?? id;
 };
 
+const HISTORY_SHOWN = 10;
+
 function ExerciseProgress({ sets, onOpen }: { sets: SetRecord[]; onOpen: (set: SetRecord) => void }) {
   const now = useMemo(() => new Date(), []);
+  const [showAll, setShowAll] = useState(false);
+  const history = showAll ? sets : sets.slice(0, HISTORY_SHOWN);
   const points = useMemo(() => setPoints(sets).slice(-30), [sets]);
   const latest = sets[0];
   const primary = metricInfo(latest.config.primaryMetric);
@@ -33,20 +39,22 @@ function ExerciseProgress({ sets, onOpen }: { sets: SetRecord[]; onOpen: (set: S
       )}
 
       <h2>Trends</h2>
-      <WeeklyChart weeks={weeklyTotals(sets, now)} />
-      <TrendChart title="Clean reps" subtitle="Share of counted reps with no form faults, per set."
-        unit="%" domain={[0, 100]} points={points.map((p) => ({ key: p.id, date: p.started, value: p.cleanPct }))} />
-      <TrendChart title={`Range of motion: ${primary.label.toLowerCase()}`}
-        subtitle="Median lowest point of each set's reps; lower is a fuller rep."
-        unit={primary.unit} points={points.map((p) => ({ key: p.id, date: p.started, value: p.depth }))}
-        refLine={{ value: latest.config.bottomThreshold, label: `rep counts below ${latest.config.bottomThreshold}${primary.unit}` }} />
-      <TrendChart title="Lowering tempo" subtitle="Average seconds on the way down; 2–3 s is controlled."
-        unit="s" points={points.map((p) => ({ key: p.id, date: p.started, value: p.avgDownS }))} />
+      <div className="chart-grid">
+        <WeeklyChart weeks={weeklyTotals(sets, now)} />
+        <TrendChart title="Clean reps" subtitle="Share of counted reps with no form faults, per set."
+          unit="%" domain={[0, 100]} points={points.map((p) => ({ key: p.id, date: p.started, value: p.cleanPct }))} />
+        <TrendChart title={`Range of motion: ${primary.label.toLowerCase()}`}
+          subtitle="Median lowest point of each set's reps; lower is a fuller rep."
+          unit={primary.unit} points={points.map((p) => ({ key: p.id, date: p.started, value: p.depth }))}
+          refLine={{ value: latest.config.bottomThreshold, label: `rep counts below ${latest.config.bottomThreshold}${primary.unit}` }} />
+        <TrendChart title="Lowering tempo" subtitle="Average seconds on the way down; 2–3 s is controlled."
+          unit="s" points={points.map((p) => ({ key: p.id, date: p.started, value: p.avgDownS }))} />
+      </div>
       {points.length < 2 && <p className="hint">Trend charts appear after your second set.</p>}
 
       <h2>History</h2>
       <ul className="history">
-        {sets.map((set) => {
+        {history.map((set) => {
           const s = set.summary;
           const fault = topFault(set);
           return (
@@ -62,12 +70,37 @@ function ExerciseProgress({ sets, onOpen }: { sets: SetRecord[]; onOpen: (set: S
           );
         })}
       </ul>
+      {sets.length > HISTORY_SHOWN && (
+        <button className="ghost show-all" onClick={() => setShowAll((v) => !v)}>
+          {showAll ? "Show fewer" : `Show all ${sets.length} sets`}
+        </button>
+      )}
     </>
   );
 }
 
-export function Progress({ onOpen, onBack }: { onOpen: (set: SetRecord) => void; onBack: () => void }) {
-  const sets = useSets();
+/** Small menu for page actions that don't need a permanent button. */
+function MoreMenu({ children }: { children: ReactNode }) {
+  const ref = useRef<HTMLDetailsElement>(null);
+  useEffect(() => {
+    const close = (e: Event) => {
+      if (ref.current?.open && !ref.current.contains(e.target as Node)) ref.current.open = false;
+    };
+    document.addEventListener("pointerdown", close);
+    return () => document.removeEventListener("pointerdown", close);
+  }, []);
+  return (
+    <details ref={ref} className="menu">
+      <summary className="icon-btn" aria-label="More actions">⋯</summary>
+      <div className="menu-items" onClick={() => ref.current && (ref.current.open = false)}>{children}</div>
+    </details>
+  );
+}
+
+export function Progress({ sets, prog, onOpen, onAchievements }: {
+  sets: SetRecord[] | null; prog: Progression | null;
+  onOpen: (set: SetRecord) => void; onAchievements: () => void;
+}) {
   const exercises = useMemo(() => {
     const seen = new Map<string, string>();
     for (const s of sets ?? []) if (!seen.has(s.summary.exercise)) seen.set(s.summary.exercise, s.config.name);
@@ -78,14 +111,29 @@ export function Progress({ onOpen, onBack }: { onOpen: (set: SetRecord) => void;
   const ofExercise = useMemo(() => (sets ?? []).filter((s) => s.summary.exercise === exercise), [sets, exercise]);
 
   return (
-    <main className="page">
-      <h1>Progress</h1>
+    <main className="page wide">
+      <div className="title-row">
+        <h1>Progress</h1>
+        {sets && sets.length > 0 && (
+          <MoreMenu><button onClick={() => exportHistory()}>Export history (JSON)</button></MoreMenu>
+        )}
+      </div>
       {sets === null ? null : sets.length === 0 ? (
-        <p className="lede">No sets yet. Finish a set and it will show up here.</p>
+        <div className="empty">
+          <p className="lede">No sets yet. Finish a set and your reps, form trends and achievements will show up here.</p>
+          <a className="button primary" href="#/">Start your first set</a>
+        </div>
       ) : (
         <>
+          {prog && (
+            <>
+              <LevelCard level={prog.level} unlocked={Object.keys(prog.unlocked).length} />
+              <AchievementTeaser prog={prog} sets={sets} onOpen={onOpen} onSeeAll={onAchievements} />
+              <h2>Exercises</h2>
+            </>
+          )}
           {exercises.length > 1 && (
-            <div className="segmented" style={{ gridTemplateColumns: `repeat(${exercises.length}, 1fr)` }}>
+            <div className="segmented sticky" style={{ gridTemplateColumns: `repeat(${exercises.length}, 1fr)` }}>
               {exercises.map(([key, name]) => (
                 <button key={key} className={key === exercise ? "selected" : ""} onClick={() => setPicked(key)}>{name}</button>
               ))}
@@ -94,10 +142,6 @@ export function Progress({ onOpen, onBack }: { onOpen: (set: SetRecord) => void;
           <ExerciseProgress key={exercise} sets={ofExercise} onOpen={onOpen} />
         </>
       )}
-      <div className="row">
-        <button className="primary" onClick={onBack}>Back</button>
-        {sets && sets.length > 0 && <button className="ghost" onClick={() => exportHistory()}>Export JSON</button>}
-      </div>
     </main>
   );
 }

@@ -90,10 +90,12 @@ function SinceLast({ current, previous }: { current: SessionRecord["summary"]; p
   );
 }
 
-export function Summary({ record, previous, playback, children }: {
+export function Summary({ record, previous, playback, progress, children }: {
   record: SessionRecord; previous?: SetRecord | null;
   /** The set's recording, right after it ends. Past sets have none. */
   playback?: Playback | null;
+  /** XP, level and achievements the set earned. */
+  progress?: ReactNode;
   children: ReactNode;
 }) {
   const account = useAccount();
@@ -133,6 +135,7 @@ export function Summary({ record, previous, playback, children }: {
       </div>
       {s.avgDownS !== null && <p>Tempo: {s.avgDownS}s down / {s.avgUpS}s up</p>}
       {previous && <SinceLast current={s} previous={previous} />}
+      {progress}
 
       {playback && (
         <section ref={replay} className="replay-section">
