@@ -22,7 +22,6 @@ const METRIC_NOTES: Record<string, string> = {
   torso_lean: "torso angle from vertical in degrees, measured from a side view only",
   knee_ratio: "knee spread divided by ankle spread, front view only; below about 0.8 means knees caving in",
   elbow_angle: "shoulder-elbow-wrist angle in degrees",
-  elbow_drift: "upper-arm angle away from hanging straight down, in degrees",
   hip_offset: "hip distance from the shoulder-ankle line as a fraction of body length; positive is sagging, negative is piking",
 };
 

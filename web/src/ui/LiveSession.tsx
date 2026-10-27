@@ -2,16 +2,21 @@ import { useEffect, useRef, useState } from "react";
 import { isClean, type Body, type Cue, type ExerciseUpdate, type RepResult } from "../engine/exercise";
 import { createExercise } from "../engine/exercises";
 import { CueManager, type Speaker } from "../engine/feedback";
-import { PoseSmoother, SKELETON, type PoseFrame } from "../engine/pose";
+import { PoseSmoother } from "../engine/pose";
 import { Session, type SessionRecord } from "../engine/session";
+import { PoseTrack, RECORD_CAP_S, type Playback } from "../playback/playback";
+import { SetRecorder } from "../playback/recorder";
 import { createLandmarker, toPoseFrame, type ModelVariant } from "../pose/landmarker";
+import { drawPose } from "./overlay";
 
 interface Props {
   exercise: string;
   body: Body;
   model: ModelVariant;
   speaker: Speaker;
-  onDone: (record: SessionRecord) => void;
+  /** Record the set for replay on the summary screen. */
+  recordVideo: boolean;
+  onDone: (record: SessionRecord, playback: Playback | null) => void;
 }
 
 interface Hud {
@@ -23,33 +28,14 @@ interface Hud {
 
 type Status = { kind: "loading" } | { kind: "running" } | { kind: "error"; message: string };
 
-function drawPose(ctx: CanvasRenderingContext2D, pose: PoseFrame | null) {
-  ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
-  if (!pose) return;
-  const scale = ctx.canvas.width / 640;
-  ctx.lineWidth = 4 * scale;
-  ctx.strokeStyle = "rgba(255,255,255,0.9)";
-  for (const [a, b] of SKELETON) {
-    if (!pose.visible(a, b)) continue;
-    ctx.beginPath();
-    ctx.moveTo(pose.img(a)[0], pose.img(a)[1]);
-    ctx.lineTo(pose.img(b)[0], pose.img(b)[1]);
-    ctx.stroke();
-  }
-  ctx.fillStyle = "#c8f031";
-  for (let i = 11; i < 33; i++) {
-    if (!pose.visible(i)) continue;
-    ctx.beginPath();
-    ctx.arc(pose.img(i)[0], pose.img(i)[1], 5 * scale, 0, 2 * Math.PI);
-    ctx.fill();
-  }
-}
-
-export function LiveSession({ exercise, body, model, speaker, onDone }: Props) {
+export function LiveSession({ exercise, body, model, speaker, recordVideo, onDone }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const sessionRef = useRef(new Session(exercise));
+  const recorderRef = useRef<SetRecorder | null>(null);
+  const posesRef = useRef(new PoseTrack());
   const [status, setStatus] = useState<Status>({ kind: "loading" });
+  const [finishing, setFinishing] = useState(false);
   const [hud, setHud] = useState<Hud>({ update: null, cue: null, lastRep: null, fps: 0 });
   const [showMetrics, setShowMetrics] = useState(false);
   const config = useRef(createExercise(exercise, body).config).current;
@@ -100,6 +86,7 @@ export function LiveSession({ exercise, body, model, speaker, onDone }: Props) {
       const cues = new CueManager(2, 4, speaker.say);
       const ctx = canvasRef.current!.getContext("2d")!;
       const start = performance.now();
+      if (recordVideo) recorderRef.current = SetRecorder.start(stream, start, RECORD_CAP_S);
       let lastTs = -1, lastRep: RepResult | null = null, fps = 0, prev = start;
 
       const onFrame = () => {
@@ -121,6 +108,7 @@ export function LiveSession({ exercise, body, model, speaker, onDone }: Props) {
           lastRep = update.completed;
         }
         cues.push(update.cues, t);
+        if (recorderRef.current?.recording) posesRef.current.push(t, pose);
         drawPose(ctx, pose);
 
         fps = 0.9 * fps + 0.1 * (1000 / Math.max(now - prev, 1));
@@ -142,12 +130,25 @@ export function LiveSession({ exercise, body, model, speaker, onDone }: Props) {
       if (video && "cancelVideoFrameCallback" in video) video.cancelVideoFrameCallback(frameHandle);
       cancelAnimationFrame(frameHandle);
       document.removeEventListener("visibilitychange", onVisible);
+      recorderRef.current?.cancel(); // no-op after Finish, which has already stopped it
       stream?.getTracks().forEach((t) => t.stop());
       wakeLock?.release().catch(() => {});
       landmarker?.close();
       speechSynthesis?.cancel();
     };
-  }, [exercise, body, model, speaker]);
+  }, [exercise, body, model, speaker, recordVideo]);
+
+  const finish = async () => {
+    setFinishing(true);
+    // Take the record now: frames keep arriving while the recorder stops.
+    const s = sessionRef.current;
+    const record: SessionRecord = { summary: s.summary(), reps: [...s.reps], trace: [...s.trace], config, body };
+    const recording = await recorderRef.current?.stop() ?? null;
+    const video = videoRef.current;
+    onDone(record, recording && video
+      ? { ...recording, width: video.videoWidth, height: video.videoHeight, poses: posesRef.current }
+      : null);
+  };
 
   const { update, cue, lastRep, fps } = hud;
   let verdict: { text: string; tone: string } | null = null;
@@ -206,10 +207,7 @@ export function LiveSession({ exercise, body, model, speaker, onDone }: Props) {
         )}
         <div className="controls">
           <button className="ghost" onClick={() => setShowMetrics((s) => !s)}>{showMetrics ? "Hide" : "Show"} metrics</button>
-          <button className="primary" onClick={() => {
-            const s = sessionRef.current;
-            onDone({ summary: s.summary(), reps: s.reps, trace: s.trace, config, body });
-          }}>Finish</button>
+          <button className="primary" disabled={finishing} onClick={finish}>Finish</button>
         </div>
       </div>
     </div>

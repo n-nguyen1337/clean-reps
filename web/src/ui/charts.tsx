@@ -95,8 +95,11 @@ function RefLine({ y, width, label, tone }: { y: number; width: number; label: s
 // ---------------------------------------------------------------------------
 
 /** The primary metric over the whole set, with each rep shaded behind it. */
-export function TraceChart({ trace, metric, rows, refs }: {
+export function TraceChart({ trace, metric, rows, refs, cursor, onSeek }: {
   trace: TracePoint[]; metric: string; rows: RepRow[]; refs: { value: number; label: string; tone?: "warn" }[];
+  /** Set time to mark, such as the replay's position. */
+  cursor?: number | null;
+  onSeek?: (t: number) => void;
 }) {
   const [ref, width] = useWidth();
   const [tip, setTip] = useState<Tip | null>(null);
@@ -121,9 +124,12 @@ export function TraceChart({ trace, metric, rows, refs }: {
   });
   const timeTicks = niceDomain([0, t1 - t0], 5, true).ticks.filter((s) => s <= t1 - t0);
 
-  const onMove = (e: React.PointerEvent<SVGRectElement>) => {
+  const timeAt = (e: React.MouseEvent<SVGRectElement>) => {
     const box = e.currentTarget.getBoundingClientRect();
-    const t = t0 + ((e.clientX - box.left) / box.width) * (t1 - t0);
+    return t0 + ((e.clientX - box.left) / box.width) * (t1 - t0);
+  };
+  const onMove = (e: React.PointerEvent<SVGRectElement>) => {
+    const t = timeAt(e);
     let best = 0;
     for (let i = 1; i < pts.length; i++) if (Math.abs(pts[i].t - t) < Math.abs(pts[best].t - t)) best = i;
     const p = pts[best];
@@ -137,7 +143,8 @@ export function TraceChart({ trace, metric, rows, refs }: {
 
   return (
     <Frame frameRef={ref} width={width} height={height} tip={tip}
-      title={`${info.label} over the set`} subtitle="Each shaded band is one rep. Dips below the lines count and pass depth.">
+      title={`${info.label} over the set`}
+      subtitle={`Each shaded band is one rep. Dips below the lines count and pass depth.${onSeek ? " Tap to replay that moment." : ""}`}>
       <YAxis ticks={dom.ticks} y={y} width={width} unit={info.unit} />
       {rows.map((r) => {
         const faulted = r.rep.faults.length > 0;
@@ -157,6 +164,9 @@ export function TraceChart({ trace, metric, rows, refs }: {
         ))}
       </g>
       <path d={d} className="series-line s1" />
+      {cursor != null && cursor >= t0 && cursor <= t1 && (
+        <line className="cursor" x1={x(cursor)} x2={x(cursor)} y1={M.top} y2={height - M.bottom} />
+      )}
       {hover !== null && (
         <g>
           <line className="crosshair" x1={x(pts[hover].t)} x2={x(pts[hover].t)} y1={M.top} y2={height - M.bottom} />
@@ -164,6 +174,7 @@ export function TraceChart({ trace, metric, rows, refs }: {
         </g>
       )}
       <rect x={M.left} y={0} width={width - M.left - M.right} height={height} fill="transparent"
+        className={onSeek ? "clickable" : undefined} onClick={onSeek && ((e) => onSeek(timeAt(e)))}
         onPointerMove={onMove} onPointerLeave={() => { setTip(null); setHover(null); }} />
     </Frame>
   );
@@ -179,7 +190,7 @@ function repBands(n: number, width: number) {
 }
 
 /** One rule's worst value per rep against its limit; flagged reps are marked. */
-export function RuleChart({ series }: { series: RuleSeries }) {
+export function RuleChart({ series, onSelect }: { series: RuleSeries; onSelect?: (label: string) => void }) {
   const [ref, width] = useWidth();
   const [tip, setTip] = useState<Tip | null>(null);
   const { info, limit, faultSide, points, rule } = series;
@@ -215,6 +226,7 @@ export function RuleChart({ series }: { series: RuleSeries }) {
               <circle className={`dot ${p.faulted ? "flagged" : "s1"}`} cx={cx(i)} cy={y(p.value)} r={p.faulted ? 6 : 5} />
               {p.faulted && <text className="flag" x={cx(i)} y={y(p.value) - 11} textAnchor="middle">!</text>}
               <circle cx={cx(i)} cy={y(p.value)} r={Math.max(12, Math.min(band / 2, 18))} fill="transparent"
+                className={onSelect ? "clickable" : undefined} onClick={onSelect && (() => onSelect(p.label))}
                 onPointerEnter={() => setTip({
                   x: cx(i), y: y(p.value!),
                   content: <><b>Rep {p.label}</b>: {fmt(p.value!, info.unit)}<br />{p.faulted ? `Flagged: ${rule.cue}` : "Within limit"}</>,
@@ -237,7 +249,7 @@ function topRounded(x: number, y: number, w: number, h: number, r: number) {
 }
 
 /** Seconds down and seconds up per rep, stacked. */
-export function TempoChart({ rows }: { rows: RepRow[] }) {
+export function TempoChart({ rows, onSelect }: { rows: RepRow[]; onSelect?: (label: string) => void }) {
   const [ref, width] = useWidth();
   const [tip, setTip] = useState<Tip | null>(null);
   const height = 180;
@@ -264,6 +276,7 @@ export function TempoChart({ rows }: { rows: RepRow[] }) {
             <rect className="bar s1" x={x0} y={downTop} width={barW} height={Math.max(y(0) - downTop, 0)} />
             <path className="bar s2" d={topRounded(x0, upTop, barW, Math.max(downTop - upTop - gap, 0), 4)} />
             <rect x={cx(i) - band / 2} y={M.top} width={band} height={height - M.top - M.bottom} fill="transparent"
+              className={onSelect ? "clickable" : undefined} onClick={onSelect && (() => onSelect(r.label))}
               onPointerEnter={() => setTip({
                 x: cx(i), y: upTop,
                 content: <><b>Rep {r.label}</b><br />{r.downS.toFixed(1)} s down · {r.upS.toFixed(1)} s up</>,

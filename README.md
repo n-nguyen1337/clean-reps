@@ -26,7 +26,7 @@ The pose model (~9 MB) downloads to `models/` on first run.
 ```bash
 python -m cleanreps -e squat -s 0          # webcam 0, squat
 python -m cleanreps -e pushup -m lite      # faster, less accurate model
-python -m cleanreps -e curl --no-audio
+python -m cleanreps -e pushup --no-audio
 python -m cleanreps -e squat --record      # also save raw video to recordings/
 python -m cleanreps -e squat -s clip.mp4 --headless   # replay a clip, print summary
 python -m cleanreps --web                  # browser viewer for clips in vids/ (http://127.0.0.1:8000)
@@ -34,7 +34,7 @@ python -m cleanreps --web                  # browser viewer for clips in vids/ (
 
 Keys: `q`/`Esc` quit, `r` reset reps. A JSON session log is written to `sessions/` when you quit.
 
-Supported exercises: `squat`, `pushup`, `curl`. Each prints the camera angle it needs at startup.
+Supported exercises: `squat`, `pushup`. Each prints the camera angle it needs at startup.
 
 ### Demo site
 
@@ -170,7 +170,6 @@ Python unit tests use synthetic metric streams. For end-to-end regression tests,
 - [ ] Camera switch (front/back) on phones
 
 ### To decide
-- [ ] **Curl**: it's still in the picker, but the plan drops it for v1 since most home users have no dumbbells. Keep or hide it?
 - [ ] **Fixtures in git**: commit parity fixtures once there are self-recorded clips, so CI can run the parity tests?
 - [ ] **Dependency versions**: `npm` installed the current majors (React 19, Vite 8, TypeScript 7, tasks-vision 1.1), while the Python side pins mediapipe 0.10.35. Pin exact versions, and decide whether to move Python to mediapipe 1.x.
 - [ ] **Analytics**: none, or privacy-friendly page counts (e.g. GoatCounter) for the beta?
