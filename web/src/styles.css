@@ -127,6 +127,40 @@ button:disabled { opacity: 0.5; cursor: default; }
 .swatch.s2 { background: var(--series-2); }
 .tooltip { position: absolute; transform: translate(-50%, calc(-100% - 10px)); background: #090a16; border: 1px solid var(--border); border-radius: 8px; padding: 6px 10px; font-size: 0.85rem; white-space: nowrap; pointer-events: none; }
 
+.chart .cursor { stroke: var(--accent); stroke-width: 2; pointer-events: none; }
+.clickable { cursor: pointer; }
+.rep-table tr.clickable:hover td { background: rgba(255, 255, 255, 0.04); }
+.faults li > button { flex: 1; display: flex; justify-content: space-between; gap: 12px; margin: -12px -14px; padding: 12px 14px; border: 0; background: none; text-align: left; }
+.faults small { color: var(--accent); font-weight: 500; margin-left: 8px; }
+
+/* Summary: set replay. */
+.replay-section { scroll-margin-top: 12px; }
+.replay { display: grid; gap: 10px; }
+.replay-view { position: relative; width: 100%; max-height: 70vh; background: #000; border-radius: 12px; overflow: hidden; }
+.replay-hud { position: absolute; top: 0; left: 0; right: 0; padding: 10px; display: flex; justify-content: space-between; gap: 8px; pointer-events: none; }
+.timeline { position: relative; height: 30px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; cursor: pointer; touch-action: none; overflow: hidden; }
+.timeline:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.timeline .seg { position: absolute; top: 7px; bottom: 7px; border-radius: 4px; opacity: 0.6; }
+.timeline .seg.good { background: var(--good); }
+.timeline .seg.warn { background: var(--warn); }
+.timeline .seg.bad { background: var(--bad); }
+.timeline .seg.active { opacity: 1; box-shadow: 0 0 0 2px var(--text); }
+.timeline .seg i { position: absolute; top: 2px; bottom: 2px; width: 2px; margin-left: -1px; border-radius: 1px; background: rgba(0, 0, 0, 0.35); }
+.timeline .unrecorded { position: absolute; top: 0; bottom: 0; right: 0; background: repeating-linear-gradient(45deg, transparent 0 4px, rgba(255, 255, 255, 0.07) 4px 8px); }
+.timeline .playhead { position: absolute; top: 0; bottom: 0; width: 2px; margin-left: -1px; background: var(--accent); pointer-events: none; }
+.replay-controls { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.replay-controls button { padding: 8px 12px; min-width: 44px; }
+.replay-time { margin-left: auto; color: var(--muted); font-size: 0.9rem; font-variant-numeric: tabular-nums; }
+.replay-options { display: flex; gap: 12px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
+.replay-options .toggle { margin: 0; }
+.segmented.speeds { grid-template-columns: repeat(3, auto); margin: 0; }
+.rep-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { padding: 4px 10px; min-width: 36px; border-radius: 999px; font-size: 0.85rem; font-variant-numeric: tabular-nums; }
+.chip.good { color: var(--good); }
+.chip.warn { color: var(--warn); }
+.chip.bad { color: var(--bad); }
+.chip.active { border-color: currentColor; box-shadow: inset 0 0 0 1px currentColor; }
+
 .rep-table summary { cursor: pointer; color: var(--muted); }
 .table-scroll { overflow-x: auto; margin-top: 10px; }
 .rep-table table { border-collapse: collapse; width: 100%; font-size: 0.85rem; font-variant-numeric: tabular-nums; }

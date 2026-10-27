@@ -1,10 +1,12 @@
-import { useMemo, useState, type ReactNode } from "react";
+import { useMemo, useRef, useState, type ReactNode } from "react";
 import type { CoachReport } from "../ai/coach";
 import { getClient, useAccount } from "../cloud/account";
 import { analyze, metricInfo } from "../engine/analysis";
 import type { SessionRecord } from "../engine/session";
+import type { Playback } from "../playback/playback";
 import type { SetRecord } from "../store/record";
 import { RuleChart, shortDate, TempoChart, TraceChart } from "./charts";
+import { Player, type PlayerHandle } from "./Player";
 
 const ICON = { warn: "!", good: "✓", info: "i" } as const;
 
@@ -88,10 +90,16 @@ function SinceLast({ current, previous }: { current: SessionRecord["summary"]; p
   );
 }
 
-export function Summary({ record, previous, children }: {
-  record: SessionRecord; previous?: SetRecord | null; children: ReactNode;
+export function Summary({ record, previous, playback, children }: {
+  record: SessionRecord; previous?: SetRecord | null;
+  /** The set's recording, right after it ends. Past sets have none. */
+  playback?: Playback | null;
+  children: ReactNode;
 }) {
   const account = useAccount();
+  const player = useRef<PlayerHandle>(null);
+  const replay = useRef<HTMLElement>(null);
+  const [replayT, setReplayT] = useState<number | null>(null);
   const { summary: s, config: cfg } = record;
   const analysis = useMemo(() => analyze(cfg, record.reps), [cfg, record.reps]);
   const label = (id: string) => id === "partial" ? "Partial reps" : cfg.rules.find((r) => r.id === id)?.cue ?? id;
@@ -104,6 +112,17 @@ export function Summary({ record, previous, children }: {
   ];
   const charted = analysis.rules.filter((r) => r.points.some((p) => p.value !== null));
 
+  // With a replay, tapping a rep anywhere on the page plays it.
+  const reveal = () => replay.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  const playRow = (row: (typeof analysis.rows)[number] | undefined) => {
+    if (!row) return;
+    player.current?.playRep(row);
+    reveal();
+  };
+  const playRep = playback ? (label: string) => playRow(analysis.rows.find((r) => r.label === label)) : undefined;
+  const playFault = playback ? (id: string) => playRow(analysis.rows.find((r) => r.rep.faults.includes(id))) : undefined;
+  const seek = playback ? (t: number) => { player.current?.seek(t); reveal(); } : undefined;
+
   return (
     <main className="page">
       <h1>{cfg.name}</h1>
@@ -114,6 +133,14 @@ export function Summary({ record, previous, children }: {
       </div>
       {s.avgDownS !== null && <p>Tempo: {s.avgDownS}s down / {s.avgUpS}s up</p>}
       {previous && <SinceLast current={s} previous={previous} />}
+
+      {playback && (
+        <section ref={replay} className="replay-section">
+          <h2>Replay</h2>
+          <Player ref={player} playback={playback} rows={analysis.rows} trace={record.trace}
+            metric={cfg.primaryMetric} faultLabel={label} onTime={setReplayT} />
+        </section>
+      )}
 
       {analysis.insights.length > 0 && (
         <>
@@ -134,9 +161,10 @@ export function Summary({ record, previous, children }: {
           )}
 
           <h2>Charts</h2>
-          <TraceChart trace={record.trace} metric={cfg.primaryMetric} rows={analysis.rows} refs={refs} />
-          {charted.map((series) => <RuleChart key={series.rule.id} series={series} />)}
-          <TempoChart rows={analysis.rows} />
+          <TraceChart trace={record.trace} metric={cfg.primaryMetric} rows={analysis.rows} refs={refs}
+            cursor={replayT} onSeek={seek} />
+          {charted.map((series) => <RuleChart key={series.rule.id} series={series} onSelect={playRep} />)}
+          <TempoChart rows={analysis.rows} onSelect={playRep} />
 
           <details className="rep-table">
             <summary>Rep-by-rep table</summary>
@@ -151,7 +179,8 @@ export function Summary({ record, previous, children }: {
                 </thead>
                 <tbody>
                   {analysis.rows.map((row) => (
-                    <tr key={row.label}>
+                    <tr key={row.label} className={playRep ? "clickable" : undefined}
+                      onClick={playRep && (() => playRep(row.label))}>
                       <td>{row.label}</td>
                       <td>{row.downS.toFixed(1)} s</td>
                       <td>{row.upS.toFixed(1)} s</td>
@@ -173,7 +202,13 @@ export function Summary({ record, previous, children }: {
         <>
           <h2>What to work on</h2>
           <ul className="faults">
-            {faults.map(([id, n]) => <li key={id}><span>{label(id)}</span><b>{n}×</b></li>)}
+            {faults.map(([id, n]) => (
+              <li key={id}>
+                {playFault
+                  ? <button onClick={() => playFault(id)}><span>{label(id)}</span><b>{n}× <small>Watch</small></b></button>
+                  : <><span>{label(id)}</span><b>{n}×</b></>}
+              </li>
+            ))}
           </ul>
         </>
       )}
