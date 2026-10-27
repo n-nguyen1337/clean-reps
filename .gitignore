@@ -13,6 +13,9 @@ recordings/
 # Test clips can be large; commit them deliberately (or use Git LFS)
 tests/clips/*.mp4
 
+# Supabase CLI state written by `supabase link` (project ref, versions)
+supabase/.temp/
+
 # Source clips (may be licensed for local use only) and the generated demo site
 vids/
 site/
