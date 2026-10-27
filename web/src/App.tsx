@@ -137,7 +137,7 @@ export function App() {
       <details className="about">
         <summary>About cleanReps</summary>
         <ol>
-          <li><b>Pick an exercise.</b> Squats, push-ups and curls are supported. Each card says where to put the camera.</li>
+          <li><b>Pick an exercise.</b> Squats and push-ups are supported. Each card says where to put the camera.</li>
           <li><b>Set up the camera.</b> Prop your phone or laptop so your whole body is in frame, then tap Start.</li>
           <li><b>Train.</b> The app tracks your joints, counts reps, and calls out form issues like a shallow squat or sagging hips. A chime means a clean rep.</li>
           <li><b>Review.</b> After the set, replay it with your tracked skeleton drawn over the video, jump to any rep, and see per-rep depth, tempo and form charts, plus tips on what to work on next.</li>

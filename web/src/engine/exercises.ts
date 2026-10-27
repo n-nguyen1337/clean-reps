@@ -1,9 +1,8 @@
-// Per-exercise metrics (port of cleanreps/exercises/{squat,pushup,curl}.py).
+// Per-exercise metrics (port of cleanreps/exercises/{squat,pushup}.py).
 // Thresholds and rules come from the Python package's YAML files, so both
 // sides always run the same rules.
 
 import { parse } from "yaml";
-import curlYaml from "../../../cleanreps/rules/curl.yaml?raw";
 import pushupYaml from "../../../cleanreps/rules/pushup.yaml?raw";
 import squatYaml from "../../../cleanreps/rules/squat.yaml?raw";
 import { AVERAGE_BODY, Exercise, forBody, parseConfig, type Body, type Metrics } from "./exercise";
@@ -47,19 +46,6 @@ const DEFS: Record<string, ExerciseDef> = {
         // Positive: hips sag below the shoulder-ankle line. Negative: piked up.
         m.hip_offset = lineOffset(pose.img(s.hip), pose.img(s.shoulder), pose.img(s.ankle));
       }
-    },
-  },
-  curl: {
-    yaml: curlYaml,
-    metrics: ["elbow_angle", "elbow_drift", "torso_lean"],
-    compute(pose, m) {
-      const s = pose.bestSide("shoulder", "elbow", "wrist");
-      if (pose.visible(s.shoulder, s.elbow, s.wrist)) {
-        m.elbow_angle = angle(pose.w(s.shoulder), pose.w(s.elbow), pose.w(s.wrist));
-        // Upper arm angle away from hanging straight down.
-        m.elbow_drift = 180 - angleFromVertical(pose.img(s.shoulder), pose.img(s.elbow));
-      }
-      if (pose.visible(s.shoulder, s.hip)) m.torso_lean = angleFromVertical(pose.img(s.hip), pose.img(s.shoulder));
     },
   },
 };

@@ -66,7 +66,7 @@ clean-reps/
 - [x] Share rules with the app (it imports `cleanreps/rules/*.yaml` directly; no move needed)
 
 ### W3 — MVP (3–4 weeks)
-- [ ] Exercise picker: squat, push-up, lunge, plank (drop curls; most home users have no dumbbells)
+- [ ] Exercise picker: squat, push-up, lunge, plank (curls removed; most home users have no dumbbells)
 - [ ] "Hold" mode in the engine for plank (timer plus form checks)
 - [ ] Setup flow: placement guidance, full body in frame, right angle, then a hands-free countdown once in position
 - [x] Live session: skeleton, rep counter, spoken cues

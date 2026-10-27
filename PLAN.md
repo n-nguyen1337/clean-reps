@@ -33,7 +33,6 @@ Webcam (OpenCV) → Pose estimation (MediaPipe) → Smoothing → Features → E
 |---|---|---|
 | **Squat** (build first) | Side; front for knees | Depth (hip vs knee), torso lean, knees caving in (front view), heels lifting |
 | Push-up | Side | Elbow depth, hips sagging or piking (shoulder–hip–ankle line), full lockout |
-| Bicep curl | Front or side | Full range, elbow drifting forward, torso swinging |
 
 Rules and thresholds live in YAML config files, one per exercise, so new exercises can be added without changing the core code.
 
@@ -45,7 +44,7 @@ cleanreps/
   pose.py         # MediaPipe PoseLandmarker wrapper
   filters.py      # One Euro filter
   geometry.py     # angles, vectors, normalization
-  exercises/      # base class, squat.py, pushup.py, curl.py
+  exercises/      # base class, squat.py, pushup.py
   rules/          # YAML thresholds per exercise
   feedback.py     # cue priority, cooldown, TTS
   ui.py           # overlay drawing
@@ -86,9 +85,9 @@ tests/            # replay recorded clips, assert rep counts and faults
 
 ### M4 — More exercises
 - [x] Push-up (depth, hip sag, hip pike)
-- [x] Bicep curl (full curl, elbow drift, torso swing)
+- [x] ~~Bicep curl~~ removed 2026-10-27: most home users have no dumbbells
 - [x] Refine the exercise base class and YAML rule format
-- [ ] Confirm push-up and curl on live video
+- [ ] Confirm push-up on live video
 
 ### M5 — Polish
 - [ ] Calibration pose (about 3 s) to capture body proportions
@@ -115,7 +114,7 @@ tests/            # replay recorded clips, assert rep counts and faults
 
 - [ ] **Platform:** a Python desktop app (current plan) or a browser/mobile app? Product options: [PLAN-web.md](PLAN-web.md), [PLAN-mobile.md](PLAN-mobile.md)
 - [ ] **Goal:** a personal tool, a portfolio project, or the seed of a product?
-- [ ] **Exercises:** are squat, push-up and curl right, or should others come first (deadlift, overhead press, lunges)?
+- [ ] **Exercises:** are squat and push-up right, or should others come first (deadlift, overhead press, lunges)?
 - [ ] **Feedback:** is on-screen text plus voice enough, or should progress be tracked across sessions?
 
 ## Decision log
