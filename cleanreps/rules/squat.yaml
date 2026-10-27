@@ -16,6 +16,14 @@ rules:
     cue: Squat a little deeper
     priority: 3
 
+  - id: hip_hinge
+    metric: hip_angle     # torso-thigh angle, ~170 standing, ~40-90 at the bottom of a squat
+    aggregate: min
+    max: 120              # bending only the knees leaves the hips nearly straight
+    no_rep: true
+    cue: Sit your hips back
+    priority: 3
+
   - id: torso_lean
     metric: torso_lean    # side view only
     max: 50

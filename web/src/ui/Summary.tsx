@@ -129,7 +129,7 @@ export function Summary({ record, previous, playback, children }: {
       <div className="stats">
         <div><b>{s.reps}</b><span>reps</span></div>
         <div><b>{s.cleanReps}</b><span>clean</span></div>
-        <div><b>{s.partialReps}</b><span>partial</span></div>
+        <div><b>{s.partialReps}</b><span>not counted</span></div>
       </div>
       {s.avgDownS !== null && <p>Tempo: {s.avgDownS}s down / {s.avgUpS}s up</p>}
       {previous && <SinceLast current={s} previous={previous} />}

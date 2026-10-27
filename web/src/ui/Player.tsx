@@ -193,7 +193,7 @@ export function Player({ playback, rows, trace, metric, faultLabel, onTime, ref 
   const value = traceValueAt(trace, metric, t);
   const info = metricInfo(metric);
   const verdict = (row: RepRow) =>
-    !row.rep.counted ? "Partial rep"
+    !row.rep.counted ? (row.rep.faults.includes("partial") ? "Partial rep" : `No rep: ${row.rep.faults.map(faultLabel).join(", ")}`)
       : row.rep.faults.length ? `Rep ${row.label}: ${row.rep.faults.map(faultLabel).join(", ")}` : `Rep ${row.label}: clean`;
 
   return (

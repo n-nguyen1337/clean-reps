@@ -5,8 +5,9 @@
 // coming out of it. Rules flag a fault when their metric leaves [min, max]:
 // live rules (no aggregate) are checked every frame during a rep and must be
 // violated for minFrames consecutive frames; rep rules (aggregate: min|max)
-// are checked once, when the rep ends, against the metric's extreme. An
-// optional `proportions` section shifts rule limits for the user's Body.
+// are checked once, when the rep ends, against the metric's extreme. A rule
+// with no_rep also stops the rep from counting when it fires. An optional
+// `proportions` section shifts rule limits for the user's Body.
 
 export const LOST_CUE_AFTER_S = 1.0;
 export const LOST_ABORT_AFTER_S = 2.0;
@@ -35,6 +36,8 @@ export interface Rule {
   max: number | null;
   aggregate: "min" | "max" | null;
   minFrames: number;
+  /** A rep with this fault doesn't count. */
+  noRep: boolean;
 }
 
 export interface ExerciseConfig {
@@ -94,7 +97,7 @@ export function parseConfig(data: Record<string, any>): ExerciseConfig {
     return {
       id: r.id, metric: r.metric, cue: r.cue, priority: r.priority ?? 1,
       min: r.min ?? null, max: r.max ?? null, aggregate: r.aggregate ?? null,
-      minFrames: r.min_frames ?? 3,
+      minFrames: r.min_frames ?? 3, noRep: r.no_rep ?? false,
     };
   });
   const cfg: ExerciseConfig = {
@@ -270,7 +273,6 @@ export class Exercise<P> {
     const rep = this.rep!;
     this.rep = null;
     this.phase = "top";
-    this.reps += 1;
 
     for (const rule of this.repRules) {
       const extreme = rep.extremes[rule.metric];
@@ -282,6 +284,14 @@ export class Exercise<P> {
       }
     }
 
+    if (this.config.rules.some((r) => r.noRep && rep.faults.includes(r.id))) {
+      return {
+        counted: false, index: null, startS: rep.startS, bottomS: rep.bottomS, endS: t,
+        faults: rep.faults, extremes: rep.extremes,
+      };
+    }
+
+    this.reps += 1;
     const result: RepResult = {
       counted: true, index: this.reps, startS: rep.startS, bottomS: rep.bottomS, endS: t,
       faults: rep.faults, extremes: rep.extremes,

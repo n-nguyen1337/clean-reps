@@ -39,7 +39,7 @@ class Session:
         s = self.summary()
         lines = [
             f"{s['exercise']}: {s['reps']} reps ({s['clean_reps']} clean, "
-            f"{s['partial_reps']} partial)",
+            f"{s['partial_reps']} not counted)",
         ]
         if s["avg_down_s"] is not None:
             lines.append(f"Tempo: {s['avg_down_s']}s down / {s['avg_up_s']}s up")

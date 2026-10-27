@@ -10,7 +10,7 @@ import { Session } from "../session";
 const FPS = 30;
 
 const rule = (r: Partial<Rule> & Pick<Rule, "id" | "metric" | "cue">): Rule =>
-  ({ priority: 1, min: null, max: null, aggregate: null, minFrames: 3, ...r });
+  ({ priority: 1, min: null, max: null, aggregate: null, minFrames: 3, noRep: false, ...r });
 
 function makeExercise(...rules: Rule[]) {
   return new Exercise<Metrics>("fake", {
@@ -66,6 +66,18 @@ describe("exercise engine", () => {
     const [shallow, deep] = completed(run(ex, [...repCurve(105), ...repCurve(90)]));
     expect(shallow.faults).toEqual(["depth"]);
     expect(isClean(deep)).toBe(true);
+  });
+
+  it("stops counting a rep when a no_rep rule fires", () => {
+    const ex = makeExercise(rule({ id: "hinge", metric: "lean", aggregate: "max", max: 100, noRep: true, cue: "Hips back", priority: 3 }));
+    const angles = repCurve(90);
+    const updates = run(ex, [...angles, ...angles], [...angles.map(() => 150), ...angles.map(() => 60)]);
+    const [blocked, good] = completed(updates);
+    expect(blocked).toMatchObject({ counted: false, index: null, faults: ["hinge"] });
+    expect(isClean(good)).toBe(true);
+    expect(good.index).toBe(1);
+    expect(ex.reps).toBe(1);
+    expect(updates.slice(0, 60).flatMap((u) => u.cues.map((c) => c.id))).toEqual(["hinge"]);
   });
 
   it("needs consecutive frames for live rules and cues once", () => {

@@ -93,7 +93,7 @@ export function analyze(config: ExerciseConfig, reps: RepResult[]): SetAnalysis 
       limit: (rule.max ?? rule.min)!,
       faultSide: rule.max !== null ? "above" : "below",
       // Partial reps end before the rules are checked, so they'd only add noise here.
-      points: rows.filter((row) => row.rep.counted).map((row) => ({
+      points: rows.filter((row) => !row.rep.faults.includes("partial")).map((row) => ({
         label: row.label,
         value: row.values[rule.id],
         faulted: row.rep.faults.includes(rule.id),
@@ -106,12 +106,16 @@ export function analyze(config: ExerciseConfig, reps: RepResult[]): SetAnalysis 
 function insights(config: ExerciseConfig, rows: RepRow[]): Insight[] {
   const out: Insight[] = [];
   const counted = rows.filter((r) => r.rep.counted);
-  const partials = rows.length - counted.length;
+  const partials = rows.filter((r) => r.rep.faults.includes("partial")).length;
   if (partials > 0) {
     out.push({ tone: "warn", text: `${plural(partials, "rep")} didn't go deep enough to count.` });
   }
+  for (const rule of config.rules.filter((r) => r.noRep)) {
+    const blocked = rows.filter((r) => !r.rep.counted && r.rep.faults.includes(rule.id)).length;
+    if (blocked > 0) out.push({ tone: "warn", text: `${plural(blocked, "rep")} didn't count: "${rule.cue}".` });
+  }
   if (counted.length === 0) {
-    if (!partials) out.push({ tone: "info", text: "No reps recorded. Check that your whole body is in frame." });
+    if (rows.length === 0) out.push({ tone: "info", text: "No reps recorded. Check that your whole body is in frame." });
     return out;
   }
 

@@ -307,16 +307,16 @@ async function analyze() {
 function renderSidebar() {
   const s = info.summary, dur = info.frames / info.fps;
   $('count').textContent = `${s.reps} reps`;
-  $('detail').innerHTML = `${s.clean_reps} clean · ${s.partial_reps} partial` +
+  $('detail').innerHTML = `${s.clean_reps} clean · ${s.partial_reps} not counted` +
     (s.avg_down_s != null ? `<br>Tempo ${s.avg_down_s}s down / ${s.avg_up_s}s up` : '') +
     `<br>${info.camera_hint}`;
   $('reps').innerHTML = info.reps.map((r, i) => {
-    const [cls, label] = r.clean ? ['ok', 'clean'] : r.counted ? ['warn', r.faults.join(', ')] : ['bad', 'partial'];
+    const [cls, label] = r.clean ? ['ok', 'clean'] : r.counted ? ['warn', r.faults.join(', ')] : ['bad', r.faults.join(', ')];
     return `<li data-i="${i}"><span>${r.counted ? 'Rep ' + r.index : 'No rep'}</span><span class="${cls}">${label}</span></li>`;
   }).join('');
   $('marks').innerHTML = info.reps.map((r, i) => {
     const color = r.clean ? 'var(--accent)' : r.counted ? 'var(--warn)' : 'var(--bad)';
-    return `<span data-i="${i}" title="${r.counted ? 'Rep ' + r.index : 'Partial'}" style="left:${r.start_s / dur * 100}%;` +
+    return `<span data-i="${i}" title="${r.counted ? 'Rep ' + r.index : 'No rep'}" style="left:${r.start_s / dur * 100}%;` +
            `width:${Math.max((r.end_s - r.start_s) / dur * 100, .5)}%;background:${color}"></span>`;
   }).join('');
   for (const el of document.querySelectorAll('[data-i]'))

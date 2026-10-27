@@ -157,7 +157,7 @@ export function LiveSession({ exercise, body, model, speaker, recordVideo, onDon
       ? { text: `Rep ${lastRep.index}: clean`, tone: "good" }
       : lastRep.counted
         ? { text: `Rep ${lastRep.index}: ${lastRep.faults.join(", ")}`, tone: "warn" }
-        : { text: "No rep: partial", tone: "bad" };
+        : { text: `No rep: ${lastRep.faults.join(", ")}`, tone: "bad" };
   }
 
   return (

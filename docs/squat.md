@@ -10,7 +10,7 @@ The TypeScript engine in [`web/src/engine/`](../web/src/engine/) is a port of th
 
 ## In short
 
-A rep **counts** when the knee angle drops from standing (≥ 160°) to below 120° and comes back up to standing.
+A rep **counts** when the knee angle drops from standing (≥ 160°) to below 120° and comes back up to standing, and the hips bent too (hip angle below 120° at some point in the rep). Bending only the knees isn't a squat, so it doesn't count.
 
 A counted rep is **clean** (and plays the chime) when none of these faults happened during it:
 
@@ -19,7 +19,13 @@ A counted rep is **clean** (and plays the chime) when none of these faults happe
 | `depth` | Didn't squat deep enough | Lowest knee angle in the rep | above 100° | "Squat a little deeper" |
 | `torso_lean` | Chest dropped forward too far | Torso angle from vertical (side view) | above 50° (40–65° depending on your build, see section 7) | "Chest up" |
 | `knee_valgus` | Knees caved inward | Knee spread ÷ ankle spread (front view) | below 0.8 for 4+ frames | "Push your knees out" |
+
+These faults stop the rep from counting at all:
+
+| Fault | What it means | Measured as | Fault when | Cue |
+|---|---|---|---|---|
 | `partial` | Started a squat but never reached the bottom | Knee angle didn't reach 120° | dip of 25° or more | "Go deeper" |
+| `hip_hinge` | Bent the knees but not the hips | Lowest hip angle in the rep | above 120° | "Sit your hips back" |
 
 The rest of this document explains where each of these numbers comes from.
 
@@ -43,8 +49,8 @@ Some faults can only be seen from certain angles, so the squat first works out h
 
 | Camera view | What can be judged |
 |---|---|
-| Side | Depth, hip angle, torso lean |
-| Front | Depth, knee tracking (valgus) |
+| Side | Depth, hip hinge, torso lean |
+| Front | Depth, hip hinge, knee tracking (valgus) |
 
 That is why the camera hint says: *"Side view for depth and torso lean; front view for knee tracking."*
 
@@ -64,7 +70,7 @@ This is the **primary metric**: it drives rep counting (section 4) and the depth
 
 ### Hip angle
 
-The angle at the hip between the torso (hip → shoulder) and the thigh (hip → knee), in 3D. It is recorded for each rep but no rule uses it yet.
+The angle at the hip between the torso (hip → shoulder) and the thigh (hip → knee), in 3D. About **170°** standing, and typically **40–90°** at the bottom of a real squat. If it never drops below **120°**, the knees bent without the hips sitting back, and the rep doesn't count (`hip_hinge`).
 
 ### Torso lean (side view only)
 
@@ -119,6 +125,7 @@ While a rep is in progress, the engine records the minimum and maximum of every 
 A rule with `aggregate: min` or `max` is checked against that metric's extreme over the whole rep.
 
 - **`depth`**: the *lowest* knee angle in the rep must be ≤ 100°.
+- **`hip_hinge`**: the *lowest* hip angle in the rep must be ≤ 120°. This rule has `no_rep: true`, so when it fires the rep is reported as not counted (like a partial) instead of a counted rep with a fault.
 
 Note the gap between the two depth thresholds. Going below **120°** is enough for the rep to *count*. Going below **100°** is needed for it to be *clean*. A rep that bottoms out at 110° counts, but you get "Squat a little deeper". This rewards real effort while still steering you toward parallel (about 90°).
 
@@ -133,7 +140,7 @@ Live faults are cued straight away, in the middle of the rep, while you can stil
 
 ## 6. Feedback to the user
 
-Faults turn into cues with a **priority**: depth and partial = 3, torso lean and knee valgus = 2, tracking = 1, good rep = 0. The cue manager ([`feedback.py`](../cleanreps/feedback.py)):
+Faults turn into cues with a **priority**: depth, partial and hip hinge = 3, torso lean and knee valgus = 2, tracking = 1, good rep = 0. The cue manager ([`feedback.py`](../cleanreps/feedback.py)):
 
 - shows one cue at a time, for 2 seconds
 - lets a higher-priority cue replace a lower-priority one early
