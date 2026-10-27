@@ -4,7 +4,7 @@ project_id = "clean-reps"
 
 [auth]
 site_url = "https://clean-reps.pages.dev"
-additional_redirect_urls = ["http://localhost:5173", "https://*.clean-reps.pages.dev/**"]
+additional_redirect_urls = ["https://clean-reps.pages.dev/**", "https://*.clean-reps.pages.dev/**", "http://localhost:5173/**"]
 
 [auth.external.google]
 enabled = true
