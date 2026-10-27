@@ -1,0 +1,8 @@
+node_modules/
+dist/
+# Copied or downloaded by scripts/fetch-assets.mjs
+public/mediapipe/
+public/models/
+# Parity fixtures are derived from local clips (tools/export_fixtures.py)
+fixtures/
+*.tsbuildinfo
