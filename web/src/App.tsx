@@ -69,6 +69,19 @@ export function App() {
       <h1>cleanReps</h1>
       <p className="lede">Rep counting and form cues from your camera. Everything runs on this device; no video leaves it.</p>
 
+      <details className="about">
+        <summary>About cleanReps</summary>
+        <ol>
+          <li><b>Pick an exercise.</b> Squats, push-ups and curls are supported. Each card says where to put the camera.</li>
+          <li><b>Set up the camera.</b> Prop your phone or laptop so your whole body is in frame, then tap Start.</li>
+          <li><b>Train.</b> The app tracks your joints, counts reps, and calls out form issues like a shallow squat or sagging hips. A chime means a clean rep.</li>
+          <li><b>Review.</b> After the set, see per-rep depth, tempo and form charts, plus tips on what to work on next.</li>
+        </ol>
+        <p><b>Private by design.</b> Pose tracking runs in your browser. No video is recorded or uploaded, and there are no accounts.</p>
+        <p><b>Optional AI coaching.</b> Add your own Anthropic API key in Settings to get a written review of each set. Only the set's numbers are sent, never video.</p>
+        <p><b>Tips.</b> Use good lighting and a plain background, wear fitted clothes, and keep the camera still. Use the Lite model if your phone struggles.</p>
+      </details>
+
       <h2>Exercise</h2>
       <div className="choices">
         {EXERCISE_KEYS.map((k) => (
