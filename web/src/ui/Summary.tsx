@@ -1,41 +1,25 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import type { CoachReport } from "../ai/coach";
-import { loadApiKey, saveApiKey } from "../ai/key";
+import { getClient, useAccount } from "../cloud/account";
 import { analyze, metricInfo } from "../engine/analysis";
 import type { SessionRecord } from "../engine/session";
-import { RuleChart, TempoChart, TraceChart } from "./charts";
+import type { SetRecord } from "../store/record";
+import { RuleChart, shortDate, TempoChart, TraceChart } from "./charts";
 
 const ICON = { warn: "!", good: "✓", info: "i" } as const;
 
-type Coach = { kind: "idle" } | { kind: "loading" } | { kind: "done"; report: CoachReport } | { kind: "error"; message: string };
-
-export function ApiKeyField({ onChange }: { onChange?: (key: string) => void }) {
-  const [key, setKey] = useState(loadApiKey);
-  return (
-    <label className="key-field">
-      <span>Anthropic API key (optional, for AI coaching)</span>
-      <input type="password" autoComplete="off" spellCheck={false} placeholder="sk-ant-…" value={key}
-        onChange={(e) => {
-          const next = e.target.value.trim();
-          setKey(next);
-          saveApiKey(next);
-          onChange?.(next);
-        }} />
-      <small>Stored only in this browser. Only your set's numbers are sent, straight to Anthropic, never video.</small>
-    </label>
-  );
-}
+type Coach = { kind: "idle" } | { kind: "loading" } | { kind: "done"; report: CoachReport; remaining: number }
+  | { kind: "error"; message: string };
 
 function CoachSection({ record, analysis }: { record: SessionRecord; analysis: ReturnType<typeof analyze> }) {
-  const [apiKey, setApiKey] = useState(loadApiKey);
+  const account = useAccount();
   const [coach, setCoach] = useState<Coach>({ kind: "idle" });
 
   const run = async () => {
     setCoach({ kind: "loading" });
     try {
-      // Loaded on demand so the SDK isn't in the main bundle.
-      const { getCoaching } = await import("../ai/coach");
-      setCoach({ kind: "done", report: await getCoaching(apiKey, record, analysis) });
+      const [{ getCoaching }, client] = await Promise.all([import("../ai/coach"), getClient()]);
+      setCoach({ kind: "done", ...await getCoaching(client, record, analysis) });
     } catch (err) {
       setCoach({ kind: "error", message: err instanceof Error ? err.message : String(err) });
     }
@@ -61,24 +45,53 @@ function CoachSection({ record, analysis }: { record: SessionRecord; analysis: R
           </div>
         ))}
         <p><span className="tag">Next set</span>{r.next_set}</p>
-        <p className="hint small">AI-generated from pose estimates. Not medical advice.</p>
+        <p className="hint small">
+          AI-generated from pose estimates. Not medical advice. {coach.remaining} {coach.remaining === 1 ? "review" : "reviews"} left today.
+        </p>
+      </section>
+    );
+  }
+
+  if (account.status !== "signed-in") {
+    return (
+      <section className="coach">
+        <p>Sign in to get a written review of this set from Claude, with cues and drills for your next one.</p>
+        <button className="primary" disabled={account.status === "loading"}
+          onClick={() => account.signIn().catch((err) => setCoach({ kind: "error", message: String(err) }))}>
+          Sign in with Google
+        </button>
+        {coach.kind === "error" && <p className="error">{coach.message}</p>}
       </section>
     );
   }
 
   return (
     <section className="coach">
-      {!apiKey && <ApiKeyField onChange={setApiKey} />}
-      <button className="primary" disabled={!apiKey || coach.kind === "loading"} onClick={run}>
+      <button className="primary" disabled={coach.kind === "loading"} onClick={run}>
         {coach.kind === "loading" ? "Analysing your set…" : "Get AI coaching"}
       </button>
       {coach.kind === "error" && <p className="error">{coach.message}</p>}
-      <p className="hint small">Uses Claude Haiku with your own API key; a review costs about a tenth of a cent.</p>
+      <p className="hint small">Only this set's numbers are sent, never video.</p>
     </section>
   );
 }
 
-export function Summary({ record, onAgain, onPick }: { record: SessionRecord; onAgain: () => void; onPick: () => void }) {
+/** "Last time" line comparing with the previous set of the same exercise. */
+function SinceLast({ current, previous }: { current: SessionRecord["summary"]; previous: SetRecord }) {
+  const p = previous.summary;
+  const diff = current.cleanReps - p.cleanReps;
+  return (
+    <p className="since-last">
+      Last time ({shortDate(new Date(p.started))}): {p.reps} reps, {p.cleanReps} clean.
+      {diff !== 0 && <b className={diff > 0 ? "up" : "down"}> {diff > 0 ? `+${diff}` : diff} clean reps</b>}
+    </p>
+  );
+}
+
+export function Summary({ record, previous, children }: {
+  record: SessionRecord; previous?: SetRecord | null; children: ReactNode;
+}) {
+  const account = useAccount();
   const { summary: s, config: cfg } = record;
   const analysis = useMemo(() => analyze(cfg, record.reps), [cfg, record.reps]);
   const label = (id: string) => id === "partial" ? "Partial reps" : cfg.rules.find((r) => r.id === id)?.cue ?? id;
@@ -100,6 +113,7 @@ export function Summary({ record, onAgain, onPick }: { record: SessionRecord; on
         <div><b>{s.partialReps}</b><span>partial</span></div>
       </div>
       {s.avgDownS !== null && <p>Tempo: {s.avgDownS}s down / {s.avgUpS}s up</p>}
+      {previous && <SinceLast current={s} previous={previous} />}
 
       {analysis.insights.length > 0 && (
         <>
@@ -112,8 +126,12 @@ export function Summary({ record, onAgain, onPick }: { record: SessionRecord; on
 
       {analysis.rows.length > 0 && (
         <>
-          <h2>AI coach</h2>
-          <CoachSection record={record} analysis={analysis} />
+          {account.configured && (
+            <>
+              <h2>AI coach</h2>
+              <CoachSection record={record} analysis={analysis} />
+            </>
+          )}
 
           <h2>Charts</h2>
           <TraceChart trace={record.trace} metric={cfg.primaryMetric} rows={analysis.rows} refs={refs} />
@@ -159,10 +177,7 @@ export function Summary({ record, onAgain, onPick }: { record: SessionRecord; on
           </ul>
         </>
       )}
-      <div className="row">
-        <button className="primary" onClick={onAgain}>Go again</button>
-        <button className="ghost" onClick={onPick}>Change exercise</button>
-      </div>
+      <div className="row">{children}</div>
     </main>
   );
 }

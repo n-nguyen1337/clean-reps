@@ -6,3 +6,6 @@ public/models/
 # Parity fixtures are derived from local clips (tools/export_fixtures.py)
 fixtures/
 *.tsbuildinfo
+# Local Supabase settings (see .env.example)
+.env.local
+.env.*.local

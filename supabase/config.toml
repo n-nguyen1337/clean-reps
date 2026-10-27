@@ -1,0 +1,12 @@
+# Supabase CLI project config. Only what this repo needs; see PLAN-progress.md
+# and the README for setup (link, db push, functions deploy, secrets).
+project_id = "clean-reps"
+
+[auth]
+site_url = "https://clean-reps.pages.dev"
+additional_redirect_urls = ["http://localhost:5173", "https://*.clean-reps.pages.dev/**"]
+
+[auth.external.google]
+enabled = true
+client_id = "env(SUPABASE_AUTH_GOOGLE_CLIENT_ID)"
+secret = "env(SUPABASE_AUTH_GOOGLE_SECRET)"

@@ -40,7 +40,11 @@ function niceDomain(values: number[], count = 4, floorZero = false): { lo: numbe
   return { lo, hi, ticks };
 }
 
-const fmt = (v: number, unit: string) => unit === "°" ? `${v.toFixed(0)}°` : unit === "s" ? `${v.toFixed(1)} s` : v.toFixed(2);
+const fmt = (v: number, unit: string) =>
+  unit === "°" ? `${v.toFixed(0)}°` : unit === "s" ? `${v.toFixed(1)} s` : unit === "%" ? `${v.toFixed(0)}%`
+    : unit === "reps" ? v.toFixed(0) : v.toFixed(2);
+
+export const shortDate = (d: Date) => d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
 
 interface Tip { x: number; y: number; content: ReactNode }
 
@@ -263,6 +267,101 @@ export function TempoChart({ rows }: { rows: RepRow[] }) {
               onPointerEnter={() => setTip({
                 x: cx(i), y: upTop,
                 content: <><b>Rep {r.label}</b><br />{r.downS.toFixed(1)} s down · {r.upS.toFixed(1)} s up</>,
+              })}
+              onPointerLeave={() => setTip(null)} />
+          </g>
+        );
+      })}
+    </Frame>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Progress over many sets
+
+export interface TrendPoint {
+  key: string;
+  date: Date;
+  value: number | null;
+}
+
+/** One value per set over time, oldest first. Hover a point for its date and value. */
+export function TrendChart({ title, subtitle, points, unit, domain, refLine }: {
+  title: string; subtitle: string; points: TrendPoint[]; unit: string;
+  domain?: [number, number]; refLine?: { value: number; label: string };
+}) {
+  const [ref, width] = useWidth();
+  const [tip, setTip] = useState<Tip | null>(null);
+  const height = 180;
+
+  const values = points.map((p) => p.value).filter((v): v is number => v !== null);
+  if (values.length < 2) return null;
+  const dom = domain
+    ? { lo: domain[0], hi: domain[1], ticks: niceDomain(domain, 4).ticks.filter((t) => t >= domain[0] && t <= domain[1]) }
+    : niceDomain(refLine ? [...values, refLine.value] : values);
+  const y = (v: number) => M.top + (1 - (v - dom.lo) / (dom.hi - dom.lo)) * (height - M.top - M.bottom);
+  const { band, cx } = repBands(points.length, width);
+  // Date labels need more room than rep numbers.
+  const every = Math.ceil(points.length / Math.max(1, Math.floor((width - M.left - M.right) / 56)));
+
+  let d = "";
+  points.forEach((p, i) => {
+    if (p.value === null) return;
+    d += `${d ? "L" : "M"}${cx(i).toFixed(1)},${y(p.value).toFixed(1)}`;
+  });
+
+  return (
+    <Frame frameRef={ref} width={width} height={height} tip={tip} title={title} subtitle={subtitle}>
+      <YAxis ticks={dom.ticks} y={y} width={width} unit={unit} />
+      {refLine && <RefLine y={y(refLine.value)} width={width} label={refLine.label} tone="warn" />}
+      <path d={d} className="series-line s1" />
+      {points.map((p, i) => (
+        <g key={p.key}>
+          {i % every === 0 && <text className="axis-label" x={cx(i)} y={height - 8} textAnchor="middle">{shortDate(p.date)}</text>}
+          {p.value !== null && (
+            <>
+              <circle className="dot s1" cx={cx(i)} cy={y(p.value)} r={4} />
+              <circle cx={cx(i)} cy={y(p.value)} r={Math.max(12, Math.min(band / 2, 18))} fill="transparent"
+                onPointerEnter={() => setTip({
+                  x: cx(i), y: y(p.value!),
+                  content: <><b>{fmt(p.value!, unit)}</b><br />{shortDate(p.date)}</>,
+                })}
+                onPointerLeave={() => setTip(null)} />
+            </>
+          )}
+        </g>
+      ))}
+    </Frame>
+  );
+}
+
+/** Counted reps per week, oldest first. */
+export function WeeklyChart({ weeks }: { weeks: { start: Date; reps: number; sets: number }[] }) {
+  const [ref, width] = useWidth();
+  const [tip, setTip] = useState<Tip | null>(null);
+  const height = 170;
+  if (weeks.every((w) => w.reps === 0)) return null;
+
+  const dom = niceDomain(weeks.map((w) => w.reps), 4, true);
+  const y = (v: number) => M.top + (1 - v / dom.hi) * (height - M.top - M.bottom);
+  const { band, cx } = repBands(weeks.length, width);
+  const barW = Math.min(28, band * 0.6);
+  const every = Math.ceil(weeks.length / Math.max(1, Math.floor((width - M.left - M.right) / 56)));
+
+  return (
+    <Frame frameRef={ref} width={width} height={height} tip={tip}
+      title="Reps per week" subtitle="Counted reps, weeks starting Monday.">
+      <YAxis ticks={dom.ticks} y={y} width={width} unit="reps" />
+      {weeks.map((w, i) => {
+        const top = y(w.reps);
+        return (
+          <g key={w.start.getTime()}>
+            {i % every === 0 && <text className="axis-label" x={cx(i)} y={height - 8} textAnchor="middle">{shortDate(w.start)}</text>}
+            {w.reps > 0 && <path className="bar s1" d={topRounded(cx(i) - barW / 2, top, barW, y(0) - top, 4)} />}
+            <rect x={cx(i) - band / 2} y={M.top} width={band} height={height - M.top - M.bottom} fill="transparent"
+              onPointerEnter={() => setTip({
+                x: cx(i), y: Math.min(top, y(0) - 4),
+                content: <><b>{w.reps} reps</b> in {w.sets} {w.sets === 1 ? "set" : "sets"}<br />Week of {shortDate(w.start)}</>,
               })}
               onPointerLeave={() => setTip(null)} />
           </g>

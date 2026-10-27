@@ -60,9 +60,26 @@ select { font: inherit; color: inherit; background: var(--surface); border: 1px 
 .faults { list-style: none; padding: 0; margin: 0; display: grid; gap: 8px; }
 .faults li { display: flex; justify-content: space-between; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; }
 
-.key-field { display: grid; gap: 6px; margin: 14px 0; }
-.key-field input { font: inherit; color: inherit; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; width: 100%; }
-.key-field small, .hint.small { color: var(--muted); font-size: 0.85rem; }
+.hint.small { color: var(--muted); font-size: 0.85rem; }
+.hint { color: var(--muted); }
+button.danger { color: var(--bad); }
+button:disabled { opacity: 0.5; cursor: default; }
+
+.title-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.title-row h1 { margin: 0; }
+.since-last { color: var(--muted); margin: 8px 0 0; }
+.since-last b { color: var(--text); }
+.since-last .up { color: var(--good); }
+.since-last .down { color: var(--warn); }
+
+.account { display: grid; gap: 10px; line-height: 1.5; }
+.account p { margin: 0; }
+.row.tight { margin-top: 0; }
+
+.history { list-style: none; padding: 0; margin: 0; display: grid; gap: 8px; }
+.history button { width: 100%; text-align: left; display: grid; gap: 2px; padding: 12px 14px; }
+.history .when { color: var(--muted); font-size: 0.85rem; }
+.history button span:last-child { color: var(--muted); font-size: 0.9rem; }
 
 /* Summary: takeaways, AI coach, charts. */
 .insights { list-style: none; padding: 0; margin: 0; display: grid; gap: 8px; }
