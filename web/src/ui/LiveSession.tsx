@@ -17,6 +17,8 @@ interface Props {
   /** Record the set for replay on the summary screen. */
   recordVideo: boolean;
   onDone: (record: SessionRecord, playback: Playback | null) => void;
+  /** Set when the user leaves with the back button: end the set as if Finish was tapped. */
+  finishNow?: boolean;
 }
 
 interface Hud {
@@ -28,7 +30,7 @@ interface Hud {
 
 type Status = { kind: "loading" } | { kind: "running" } | { kind: "error"; message: string };
 
-export function LiveSession({ exercise, body, model, speaker, recordVideo, onDone }: Props) {
+export function LiveSession({ exercise, body, model, speaker, recordVideo, onDone, finishNow }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const sessionRef = useRef(new Session(exercise));
@@ -149,6 +151,10 @@ export function LiveSession({ exercise, body, model, speaker, recordVideo, onDon
       ? { ...recording, width: video.videoWidth, height: video.videoHeight, poses: posesRef.current }
       : null);
   };
+
+  useEffect(() => {
+    if (finishNow && !finishing) finish();
+  }, [finishNow]); // only the flag: finish() is recreated on every render
 
   const { update, cue, lastRep, fps } = hud;
   let verdict: { text: string; tone: string } | null = null;
