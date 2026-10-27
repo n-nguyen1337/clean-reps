@@ -1,16 +1,18 @@
 :root {
-  --bg: #111418;
-  --surface: #1b2027;
-  --border: #2c333d;
-  --text: #eef1f4;
-  --muted: #98a2ae;
-  --accent: #50c878;
+  --bg: #0f1020;
+  --surface: #191b30;
+  --border: #2c2f4d;
+  --text: #eef0ff;
+  --muted: #9da2c4;
+  --accent: #c8f031;
+  --on-accent: #141a00;
+  --good: #5ee6a8;
   --warn: #f5b041;
   --bad: #e5534b;
   /* Chart series, validated for the dark surface (categorical slots 1-2). */
   --series-1: #3987e5;
   --series-2: #d95926;
-  --grid: #262c35;
+  --grid: #232640;
   color-scheme: dark;
   font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 }
@@ -20,7 +22,7 @@ html, body, #root { margin: 0; height: 100%; }
 body { background: var(--bg); color: var(--text); }
 
 button { font: inherit; color: inherit; cursor: pointer; border-radius: 10px; border: 1px solid var(--border); padding: 10px 16px; background: var(--surface); }
-button.primary { background: var(--accent); border-color: var(--accent); color: #0b1a10; font-weight: 600; }
+button.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); font-weight: 600; }
 button.ghost { background: rgba(0, 0, 0, 0.35); }
 button.big { width: 100%; padding: 16px; font-size: 1.15rem; margin-top: 24px; }
 
@@ -67,7 +69,7 @@ select { font: inherit; color: inherit; background: var(--surface); border: 1px 
 .insights li { display: flex; gap: 10px; align-items: flex-start; line-height: 1.45; }
 .insights i { flex: none; width: 1.4em; height: 1.4em; border-radius: 50%; display: grid; place-content: center; font: 700 0.8rem system-ui; font-style: normal; margin-top: 1px; }
 .insights .warn i { background: var(--warn); color: #241600; }
-.insights .good i { background: var(--accent); color: #0b1a10; }
+.insights .good i { background: var(--good); color: #04241a; }
 .insights .info i { background: var(--border); color: var(--text); }
 
 .coach { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 16px; display: grid; gap: 10px; line-height: 1.5; }
@@ -105,7 +107,7 @@ select { font: inherit; color: inherit; background: var(--surface); border: 1px 
 .swatch { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
 .swatch.s1 { background: var(--series-1); }
 .swatch.s2 { background: var(--series-2); }
-.tooltip { position: absolute; transform: translate(-50%, calc(-100% - 10px)); background: #0b0e11; border: 1px solid var(--border); border-radius: 8px; padding: 6px 10px; font-size: 0.85rem; white-space: nowrap; pointer-events: none; }
+.tooltip { position: absolute; transform: translate(-50%, calc(-100% - 10px)); background: #090a16; border: 1px solid var(--border); border-radius: 8px; padding: 6px 10px; font-size: 0.85rem; white-space: nowrap; pointer-events: none; }
 
 .rep-table summary { cursor: pointer; color: var(--muted); }
 .table-scroll { overflow-x: auto; margin-top: 10px; }
@@ -126,14 +128,14 @@ select { font: inherit; color: inherit; background: var(--surface); border: 1px 
 .reps-count { font-size: 3rem; font-weight: 700; line-height: 1; }
 .reps-label { color: var(--muted); font-size: 0.85rem; }
 .pill { background: rgba(0, 0, 0, 0.55); border-radius: 999px; padding: 6px 12px; font-size: 0.9rem; }
-.pill.good { color: var(--accent); }
+.pill.good { color: var(--good); }
 .pill.warn { color: var(--warn); }
 .pill.bad { color: var(--bad); }
 .metrics { background: rgba(0, 0, 0, 0.55); border-radius: 8px; padding: 6px 10px; font: 0.8rem ui-monospace, monospace; }
 .controls { display: flex; gap: 10px; width: 100%; justify-content: flex-end; }
 
 .cue { position: absolute; left: 50%; bottom: 140px; transform: translateX(-50%); max-width: calc(100% - 32px); background: rgba(0, 0, 0, 0.7); border-radius: 14px; padding: 14px 22px; font-size: clamp(1.3rem, 4vw, 2rem); font-weight: 700; text-align: center; }
-.cue.good { color: var(--accent); }
+.cue.good { color: var(--good); }
 .cue.warn { color: var(--warn); }
 
 .overlay-msg { position: absolute; inset: 0; display: grid; place-content: center; text-align: center; padding: 16px; background: rgba(0, 0, 0, 0.6); }

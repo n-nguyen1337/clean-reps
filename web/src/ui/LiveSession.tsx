@@ -36,7 +36,7 @@ function drawPose(ctx: CanvasRenderingContext2D, pose: PoseFrame | null) {
     ctx.lineTo(pose.img(b)[0], pose.img(b)[1]);
     ctx.stroke();
   }
-  ctx.fillStyle = "#50c878";
+  ctx.fillStyle = "#c8f031";
   for (let i = 11; i < 33; i++) {
     if (!pose.visible(i)) continue;
     ctx.beginPath();
