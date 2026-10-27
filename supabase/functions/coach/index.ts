@@ -93,7 +93,9 @@ Deno.serve(async (req) => {
         : "AI coaching is busy today. Try again tomorrow.",
     });
   }
-  // A failed review shouldn't use up the user's allowance.
+  // A review that never reached the model shouldn't use up the allowance. Refusals and
+  // unreadable answers are billed, so they keep their slot: refunding them would let
+  // a caller who can provoke one bypass both limits.
   const refund = () => admin.from("coach_requests").delete().eq("id", claim.request_id);
 
   let response;
@@ -109,19 +111,23 @@ Deno.serve(async (req) => {
       }],
     });
   } catch (err) {
-    await refund();
     console.error("anthropic", err);
-    if (err instanceof Anthropic.RateLimitError) return json(req, 503, { error: "AI coaching is busy. Try again in a minute." });
-    if (err instanceof Anthropic.APIConnectionError) return json(req, 503, { error: "Couldn't reach the AI service. Try again." });
+    if (err instanceof Anthropic.RateLimitError) {
+      await refund();
+      return json(req, 503, { error: "AI coaching is busy. Try again in a minute." });
+    }
+    if (err instanceof Anthropic.APIConnectionError) {
+      await refund();
+      return json(req, 503, { error: "Couldn't reach the AI service. Try again." });
+    }
+    if (err instanceof Anthropic.InternalServerError) await refund();
     return json(req, 502, { error: "The AI review failed. Try again." });
   }
 
   if (response.stop_reason === "refusal") {
-    await refund();
     return json(req, 422, { error: "The model declined to review this set." });
   }
   if (!response.parsed_output) {
-    await refund();
     return json(req, 502, { error: "The response couldn't be read. Try again." });
   }
   return json(req, 200, { report: response.parsed_output, remaining: claim.remaining });
