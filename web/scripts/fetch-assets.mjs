@@ -12,7 +12,11 @@ const MODEL_URL = (v) =>
 
 const wasmDir = join(pub, "mediapipe");
 if (!existsSync(wasmDir)) {
-  cpSync(join(root, "node_modules/@mediapipe/tasks-vision/wasm"), wasmDir, { recursive: true });
+  // Skip the ES-module build: FilesetResolver only loads it when asked to (useModule).
+  cpSync(join(root, "node_modules/@mediapipe/tasks-vision/wasm"), wasmDir, {
+    recursive: true,
+    filter: (src) => !src.includes("vision_wasm_module_internal"),
+  });
   console.log("Copied MediaPipe wasm to public/mediapipe");
 }
 

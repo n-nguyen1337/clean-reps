@@ -71,7 +71,19 @@ Phones default to the lite model and other devices to the full one; override wit
 | [web/src/ui/LiveSession.tsx](web/src/ui/LiveSession.tsx) | Camera loop, skeleton overlay, HUD, wake lock |
 | [web/src/App.tsx](web/src/App.tsx) | Exercise picker and session summary |
 
-Camera access needs `localhost` or HTTPS, so to test on a phone, deploy (e.g. GitHub Pages) or use a tunnel.
+Camera access needs `localhost` or HTTPS, so to test on a phone, use the deployed app or a tunnel.
+
+### Deploy
+
+Live: https://n-nguyen1337.github.io/clean-reps/app/ (the `app/` folder of the `gh-pages` branch; the replay demo stays at the site root).
+
+```bash
+cd web && npm run build
+git worktree add ../gh-pages-wt gh-pages
+rm -rf ../gh-pages-wt/app && cp -r dist ../gh-pages-wt/app
+cd ../gh-pages-wt && git add -A app && git commit -m "Deploy web app" && git push origin gh-pages
+cd .. && git worktree remove gh-pages-wt
+```
 
 ### Parity with the Python engine
 
@@ -114,7 +126,6 @@ Python unit tests use synthetic metric streams. For end-to-end regression tests,
 - [ ] **Thresholds on real home footage**: the rules were only checked on two stock clips. Record labeled clips from a laptop on a table and a phone propped on the floor ([PLAN.md](PLAN.md) M1–M3).
 
 ### Not built yet
-- [ ] Deploy the web app to GitHub Pages (it would replace the pre-rendered demo site)
 - [ ] Setup flow: placement guidance, full-body-in-frame and camera-angle check, hands-free countdown
 - [ ] Stay silent when landmark confidence is low, instead of cueing on bad data
 - [ ] Session history (IndexedDB) with JSON export
