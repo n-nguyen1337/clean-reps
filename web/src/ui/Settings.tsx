@@ -59,6 +59,10 @@ export function Settings({ settings, onChange, configs }: {
 
       <h2>Account</h2>
       <AccountPanel />
+
+      <h2>Support cleanReps</h2>
+      <p className="lede">cleanReps is free. Donations help cover hosting and the AI coach.</p>
+      <a className="button donate" href="https://ko-fi.com/nnguyen" target="_blank" rel="noopener">Donate</a>
     </main>
   );
 }

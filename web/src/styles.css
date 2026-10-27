@@ -41,6 +41,7 @@ button.big { width: 100%; padding: 16px; font-size: 1.15rem; margin-top: 24px; }
 .page h1 { margin: 0 0 8px; font-size: 2rem; }
 .page h2 { margin: 28px 0 10px; font-size: 1rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
 .lede { color: var(--muted); margin: 0; line-height: 1.5; }
+.donate { margin-top: var(--space-4); }
 .row { display: flex; gap: 12px; margin-top: 28px; flex-wrap: wrap; }
 
 
