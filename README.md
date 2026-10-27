@@ -84,7 +84,7 @@ One-time setup:
 
 1. Create a Supabase project. Copy its URL and anon key into `web/.env.local` (template: [web/.env.example](web/.env.example)). Both are public; row-level security protects the data.
 2. Google sign-in: create an OAuth client (Web application) in Google Cloud. Add `https://<project-ref>.supabase.co/auth/v1/callback` as an authorized redirect URI. Paste the client ID and secret into Supabase under Authentication > Sign In / Providers > Google.
-3. In Supabase under Authentication > URL Configuration, set the Site URL to `https://clean-reps.pages.dev`. Add `http://localhost:5173` and `https://*.clean-reps.pages.dev/**` (preview deployments) to the redirect URLs.
+3. In Supabase under Authentication > URL Configuration, set the Site URL to `https://clean-reps.pages.dev`. Add `https://clean-reps.pages.dev/**`, `https://*.clean-reps.pages.dev/**` (preview deployments) and `http://localhost:5173/**` to the redirect URLs. The app redirects back to its own address with a trailing slash; anything not on this list falls back to the Site URL, which defaults to `http://localhost:3000`.
 4. Apply the schema and deploy the functions with the [Supabase CLI](https://supabase.com/docs/guides/cli):
 
    ```bash
