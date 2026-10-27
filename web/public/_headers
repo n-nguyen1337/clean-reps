@@ -1,4 +1,4 @@
-# Cloudflare Pages response headers (copied into dist/ by Vite).
+# Cloudflare static-asset response headers (copied into dist/ by Vite).
 
 # Fingerprinted by Vite: safe to cache forever.
 /assets/*

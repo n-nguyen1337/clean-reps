@@ -25,7 +25,7 @@ Video and landmarks never leave the device. Only the set's numbers do, and only 
 ## Architecture
 
 ```
- Browser (Cloudflare Pages)                     Supabase
+ Browser (Cloudflare Worker, static assets)     Supabase
 ┌──────────────────────────────┐            ┌──────────────────────────┐
 │ Session → SetRecord           │            │ Auth (Google OAuth, PKCE) │
 │        │                      │            │                          │
@@ -124,7 +124,7 @@ The browser builds the same numbers-only input as before (`coachInput()`) and ca
 ### P2 — Supabase project and auth (about 1 week)
 - [x] `supabase/` folder with the migration and config (row types are hand-written in `cloud/remote.ts`)
 - [ ] Create the Supabase project (see README)
-- [ ] Google OAuth (manual, see README): Google Cloud client; redirect allow-list for `https://clean-reps.pages.dev`, its preview subdomains and `localhost:5173`
+- [ ] Google OAuth (manual, see README): Google Cloud client; redirect allow-list for `https://clean-reps.trieuanh-nguyen1998.workers.dev`, its preview versions and `localhost:5173`
 - [x] Sign-in and sign-out in Settings; lazy-loaded `supabase-js`
 - [ ] RLS test against the live project: user A can't read, write or overwrite user B's rows (two test users)
 
@@ -148,7 +148,7 @@ The browser builds the same numbers-only input as before (`coachInput()`) and ca
 | Risk | Mitigation |
 |---|---|
 | Supabase pauses free projects after 7 days without activity | Local-first means the app keeps working and sync resumes after unpausing. A weekly GitHub Actions cron pings the API. |
-| OAuth redirects on preview deployments | PKCE flow; wildcard redirect URL for `*.clean-reps.pages.dev` |
+| OAuth redirects on preview deployments | PKCE flow; wildcard redirect URL for `*-clean-reps.trieuanh-nguyen1998.workers.dev` |
 | Safari clears IndexedDB for sites unused for 7 days | Signing in makes the server the backup; `storage.persist()`; install prompt |
 | Thresholds retuned after sets were saved | Each set stores the exercise config it ran with |
 | Schema changes after launch | Each set carries a schema `v`; migrations live in the repo |
