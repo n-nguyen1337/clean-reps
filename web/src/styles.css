@@ -65,8 +65,9 @@ select { font: inherit; color: inherit; background: var(--surface); border: 1px 
 button.danger { color: var(--bad); }
 button:disabled { opacity: 0.5; cursor: default; }
 
-.title-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.title-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
 .title-row h1 { margin: 0; }
+.title-row button { flex: none; padding: 7px 14px; font-size: 0.9rem; border-radius: 999px; }
 .since-last { color: var(--muted); margin: 8px 0 0; }
 .since-last b { color: var(--text); }
 .since-last .up { color: var(--good); }
