@@ -123,10 +123,13 @@ The browser builds the same numbers-only input as before (`coachInput()`) and ca
 
 ### P2 — Supabase project and auth (about 1 week)
 - [x] `supabase/` folder with the migration and config (row types are hand-written in `cloud/remote.ts`)
-- [ ] Create the Supabase project (see README)
-- [ ] Google OAuth (manual, see README): Google Cloud client; redirect allow-list for `https://clean-reps.pages.dev`, its preview subdomains and `localhost:5173`
+- [x] Create the Supabase project (see README): `cleanReps`, us-east-1; migration applied, `coach` and `delete-account` deployed
+- [x] Google OAuth (manual, see README): Google Cloud client; redirect allow-list for `https://clean-reps.pages.dev`, its preview subdomains and `localhost:5173`
 - [x] Sign-in and sign-out in Settings; lazy-loaded `supabase-js`
-- [ ] RLS test against the live project: user A can't read, write or overwrite user B's rows (two test users)
+- [x] RLS test against the live project: user A can't read, write or overwrite user B's rows (two test users). pgTAP in [supabase/tests/rls.test.sql](supabase/tests/rls.test.sql), rolled back after each run; 17/17 passing on 2026-10-27
+- [ ] Set the `ANTHROPIC_API_KEY` secret (the coach fails without it)
+- [x] Turn off the Email provider; it's on by default, and the app only uses Google
+- [ ] Sign in end to end on localhost and on `clean-reps.pages.dev`, and check a set syncs between two devices
 
 ### P3 — Sync (about 1 week)
 - [x] `sync.ts` push and pull with a cursor; triggers; offline handling

@@ -96,7 +96,9 @@ One-time setup:
    npx supabase functions deploy delete-account
    ```
 
-5. Keep the free project awake: in the GitHub repo, add Actions variables `SUPABASE_URL` and `SUPABASE_ANON_KEY` for [.github/workflows/supabase-keepalive.yml](.github/workflows/supabase-keepalive.yml).
+5. Check row-level security on the live project: `node supabase/tests/run-linked.mjs` (see [Tests](#tests)).
+6. The app signs in with Google only, so turn off the Email provider under Authentication > Sign In / Providers. Otherwise anyone with the public anon key can create an account through the API and use the AI coach allowance.
+7. Keep the free project awake: in the GitHub repo, add Actions variables `SUPABASE_URL` and `SUPABASE_ANON_KEY` for [.github/workflows/supabase-keepalive.yml](.github/workflows/supabase-keepalive.yml).
 
 The AI coach calls Claude Haiku with your key from the `coach` function. Each signed-in user gets `COACH_DAILY_LIMIT` reviews per 24 hours, and `COACH_GLOBAL_DAILY_LIMIT` caps the total across all users. At about $0.001 per review, the defaults cap spend near $0.50 a day.
 
@@ -149,7 +151,10 @@ The web app runs the same pipeline in the browser: `PoseLandmarker` (tasks-visio
 ```bash
 pytest                 # Python lab
 cd web && npm test     # web engine
+node supabase/tests/run-linked.mjs   # row-level security, against the linked Supabase project
 ```
+
+The RLS test ([supabase/tests/rls.test.sql](supabase/tests/rls.test.sql)) is pgTAP. It creates two users and their sets inside a transaction, checks that neither can read, insert, update, upsert over, delete or reassign the other's sets, and that only the service role can touch the coach rate limit, then rolls everything back, so it's safe on production. The runner sends it through the Management API, so it needs a linked project but no Docker. With Docker, `npx supabase test db` runs the same file.
 
 Python unit tests use synthetic metric streams. For end-to-end regression tests, record clips into `tests/clips/` with a JSON label next to each (see [tests/test_replay_clips.py](tests/test_replay_clips.py)). The web tests port the engine unit tests and add the parity tests described above.
 
