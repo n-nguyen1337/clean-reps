@@ -15,7 +15,7 @@ The Python package in this repo stays as the **lab**: threshold tuning, labeled 
 ## Why web
 
 - **No install.** A link is all a user needs, which suits a free side project with no marketing budget.
-- **No store review or fees.** Ship by pushing to `main`; Cloudflare builds and deploys it.
+- **No store review or fees.** Ship by pushing to `main`; Cloudflare Pages builds and deploys it.
 - **Laptop and phone.** Many home workouts happen in front of a laptop, which a mobile-only app can't serve.
 - **The TS engine carries over to mobile.** If a native app comes later, the same TypeScript engine can run in React Native.
 
@@ -31,7 +31,7 @@ The Python package in this repo stays as the **lab**: threshold tuning, labeled 
 | Screen | Screen Wake Lock API | Keeps the screen on mid-set; supported in Safari 16.4+ |
 | Storage | IndexedDB (Dexie) | Set history; `navigator.storage.persist()`; JSON export. Optional sync to Supabase ([PLAN-progress.md](PLAN-progress.md)) |
 | Offline / install | PWA manifest + service worker | Add to home screen; runs offline after the first visit |
-| Hosting | Cloudflare Workers static assets, deployed by Workers Builds from GitHub (HTTPS, which camera access requires) | Preview URL per branch; the replay demo stays on GitHub Pages |
+| Hosting | Cloudflare Pages, Git integration (HTTPS, which camera access requires) | Preview URL per branch; the replay demo stays on GitHub Pages |
 
 ## Repo layout
 
@@ -112,7 +112,7 @@ clean-reps/
 | 2026-10-27 | Optional AI coaching with the user's own Anthropic API key, called from the browser | Keeps no backend and zero running cost; only per-rep numbers are sent, never video. Charts and insights stay local and free |
 | 2026-10-27 | Progression tracking: local-first history, optional Google sign-in syncing to Supabase | Keeps the no-account start; sync and backup for those who want it. Static hosting stays; RLS replaces server code |
 | 2026-10-27 | AI coach moves to a Supabase Edge Function with the app's key, rate-limited per signed-in user | Supersedes bring-your-own-key: most users don't have an API key. Daily per-user and global caps bound the cost |
-| 2026-10-27 | Host the app on Cloudflare (Workers static assets, Git deploys) instead of GitHub Pages | Free with unlimited bandwidth, deploys on push with preview URLs per branch, custom headers; replaces the manual gh-pages steps. The old /app/ URL redirects |
+| 2026-10-27 | Host the app on Cloudflare Pages (Git integration) instead of GitHub Pages | Free with unlimited bandwidth, deploys on push with preview URLs per branch, custom headers; replaces the manual gh-pages steps. The old /app/ URL redirects |
 
 ## Changelog
 

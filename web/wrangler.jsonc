@@ -1,9 +1,0 @@
-// Cloudflare Workers static assets: serves the Vite build. Workers Builds runs
-// `npm run build`, then `npx wrangler deploy` (root directory: web).
-{
-  "name": "clean-reps",
-  "compatibility_date": "2026-10-01",
-  "assets": {
-    "directory": "./dist"
-  }
-}

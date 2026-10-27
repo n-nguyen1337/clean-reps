@@ -3,8 +3,8 @@
 project_id = "clean-reps"
 
 [auth]
-site_url = "https://clean-reps.trieuanh-nguyen1998.workers.dev"
-additional_redirect_urls = ["http://localhost:5173", "https://*-clean-reps.trieuanh-nguyen1998.workers.dev/**"]
+site_url = "https://clean-reps.pages.dev"
+additional_redirect_urls = ["http://localhost:5173", "https://*.clean-reps.pages.dev/**"]
 
 [auth.external.google]
 enabled = true

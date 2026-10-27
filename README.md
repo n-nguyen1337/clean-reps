@@ -84,7 +84,7 @@ One-time setup:
 
 1. Create a Supabase project. Copy its URL and anon key into `web/.env.local` (template: [web/.env.example](web/.env.example)). Both are public; row-level security protects the data.
 2. Google sign-in: create an OAuth client (Web application) in Google Cloud. Add `https://<project-ref>.supabase.co/auth/v1/callback` as an authorized redirect URI. Paste the client ID and secret into Supabase under Authentication > Sign In / Providers > Google.
-3. In Supabase under Authentication > URL Configuration, set the Site URL to `https://clean-reps.trieuanh-nguyen1998.workers.dev`. Add `http://localhost:5173` and `https://*-clean-reps.trieuanh-nguyen1998.workers.dev/**` (preview versions) to the redirect URLs.
+3. In Supabase under Authentication > URL Configuration, set the Site URL to `https://clean-reps.pages.dev`. Add `http://localhost:5173` and `https://*.clean-reps.pages.dev/**` (preview deployments) to the redirect URLs.
 4. Apply the schema and deploy the functions with the [Supabase CLI](https://supabase.com/docs/guides/cli):
 
    ```bash
@@ -102,21 +102,19 @@ The AI coach calls Claude Haiku with your key from the `coach` function. Each si
 
 ### Deploy
 
-Live: https://clean-reps.trieuanh-nguyen1998.workers.dev, a Cloudflare Worker serving static assets, deployed by Workers Builds from GitHub. A push to `main` deploys production. Pushes to other branches upload preview versions at `https://<branch>-clean-reps.trieuanh-nguyen1998.workers.dev`. There are no manual deploy steps.
+Live: https://clean-reps.pages.dev, hosted on Cloudflare Pages through its Git integration. A push to `main` deploys production. A push to any other branch gets a preview at `https://<branch>.clean-reps.pages.dev`. There are no manual deploy steps.
 
-Worker settings (one-time, in the dashboard under the Worker > Settings > Build):
+Cloudflare Pages project settings (one-time, in the dashboard under Workers & Pages > Create > Pages > Connect to Git):
 
 | Setting | Value |
 |---|---|
-| Git repository | `n-nguyen1337/clean-reps` |
+| Project name | `clean-reps` (gives `clean-reps.pages.dev`; if you pick another name, update `ALLOWED_ORIGINS` and the Supabase URLs) |
 | Production branch | `main` |
+| Framework preset | None |
 | Root directory | `web` |
 | Build command | `npm run build` |
-| Deploy command | `npx wrangler deploy` |
-| Non-production branch deploy command | `npx wrangler versions upload` |
-| Build variables | `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` |
-
-[web/wrangler.jsonc](web/wrangler.jsonc) points the Worker at `dist/`. If the address changes (a custom domain, say), update `ALLOWED_ORIGINS` and the Supabase URLs.
+| Build output directory | `dist` |
+| Environment variables | `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` (Production and Preview) |
 
 The build reads the rules from `../cleanreps/rules` (Cloudflare clones the whole repo) and downloads the pose models. Node comes from [web/.node-version](web/.node-version), and caching and permission headers come from [web/public/_headers](web/public/_headers).
 
