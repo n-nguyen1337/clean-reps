@@ -3,7 +3,6 @@ import { EXERCISE_KEYS } from "../engine/exercises";
 import type { ModelVariant } from "../pose/landmarker";
 import type { Settings as SettingsValue } from "../store/settings";
 import { AccountPanel } from "./AccountPanel";
-import { SubHeader } from "./Shell";
 
 const BUILD_QUESTIONS: { segment: keyof Body; question: string; hint: string }[] = [
   { segment: "femur", question: "Your thighs (femurs)", hint: "Compared with your torso. Long femurs need more forward lean." },
@@ -18,7 +17,7 @@ export function Settings({ settings, onChange, configs }: {
 
   return (
     <main className="page">
-      <SubHeader title="Settings" back={{ page: "home" }} backLabel="Back to home" />
+      <h1>Settings</h1>
 
       {buildFor.length > 0 && (
         <>

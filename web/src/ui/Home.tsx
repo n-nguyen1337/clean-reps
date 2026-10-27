@@ -6,7 +6,7 @@ import { weekStreak } from "../store/progress";
 import type { SetRecord } from "../store/record";
 import type { Settings } from "../store/settings";
 import { LevelCard } from "./Achievements";
-import { ICONS } from "./Shell";
+import { Logo } from "./Logo";
 
 const STEPS = [
   { title: "Pick an exercise", text: "Squats or push-ups." },
@@ -74,8 +74,7 @@ export function Home({ sets, prog, configs, exercise, onExercise, settings, onSt
   return (
     <main className="page has-start">
       <header className="app-header">
-        <span className="wordmark">cleanReps</span>
-        <a className="icon-btn" href="#/settings" aria-label="Settings">{ICONS.settings}</a>
+        <Logo />
       </header>
 
       {sets && (sets.length > 0 ? <WelcomeBack sets={sets} prog={prog} /> : <Hero />)}
