@@ -2,7 +2,7 @@
 // (port of tests/test_exercise_engine.py).
 
 import { describe, expect, it } from "vitest";
-import { Exercise, isClean, type ExerciseUpdate, type Metrics, type Rule } from "../exercise";
+import { Exercise, forBody, isClean, parseConfig, type Body, type ExerciseUpdate, type Metrics, type Rule } from "../exercise";
 import { EXERCISE_KEYS, createExercise } from "../exercises";
 import { CueManager } from "../feedback";
 import { Session } from "../session";
@@ -15,7 +15,7 @@ const rule = (r: Partial<Rule> & Pick<Rule, "id" | "metric" | "cue">): Rule =>
 function makeExercise(...rules: Rule[]) {
   return new Exercise<Metrics>("fake", {
     name: "Fake", primaryMetric: "angle", topThreshold: 160, bottomThreshold: 110,
-    hysteresis: 8, minExcursion: 25, partialCue: "Go deeper", cameraHint: "", rules,
+    hysteresis: 8, minExcursion: 25, partialCue: "Go deeper", cameraHint: "", rules, proportions: {},
   }, ["angle", "lean"], (m) => m);
 }
 
@@ -98,6 +98,34 @@ describe("exercise engine", () => {
 
   it.each(EXERCISE_KEYS)("loads the bundled %s rules", (key) => {
     expect(createExercise(key).config.rules.length).toBeGreaterThan(0);
+  });
+});
+
+describe("body proportions", () => {
+  const limits = (femur: Body["femur"], torso: Body["torso"]) => {
+    const rules = createExercise("squat", { femur, torso }).config.rules;
+    return [rules.find((r) => r.id === "torso_lean")!.max, rules.find((r) => r.id === "depth")!.max];
+  };
+
+  it("shifts the squat lean limit, leaving other rules alone", () => {
+    expect(limits("average", "average")).toEqual([50, 100]);
+    expect(limits("long", "short")).toEqual([65, 100]);
+    expect(limits("short", "long")).toEqual([40, 100]);
+    expect(limits("long", "long")).toEqual([53, 100]);
+  });
+
+  it("shifts both limits of a rule", () => {
+    const cfg = { ...makeExercise(rule({ id: "lean", metric: "lean", cue: "x", min: 10, max: 40 })).config,
+      proportions: { femur: { long: { lean: 5 } } } };
+    const r = forBody(cfg, { femur: "long", torso: "average" }).rules[0];
+    expect([r.min, r.max]).toEqual([15, 45]);
+  });
+
+  it("rejects proportions for unknown rules", () => {
+    expect(() => parseConfig({
+      name: "X", primary_metric: "a", top_threshold: 160, bottom_threshold: 100,
+      proportions: { femur: { long: { nope: 5 } } },
+    })).toThrow(/unknown rules/);
   });
 });
 

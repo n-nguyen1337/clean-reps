@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { isClean, type Cue, type ExerciseUpdate, type RepResult } from "../engine/exercise";
+import { isClean, type Body, type Cue, type ExerciseUpdate, type RepResult } from "../engine/exercise";
 import { createExercise } from "../engine/exercises";
 import { CueManager, type Speaker } from "../engine/feedback";
 import { PoseSmoother, SKELETON, type PoseFrame } from "../engine/pose";
@@ -8,6 +8,7 @@ import { createLandmarker, toPoseFrame, type ModelVariant } from "../pose/landma
 
 interface Props {
   exercise: string;
+  body: Body;
   model: ModelVariant;
   speaker: Speaker;
   onDone: (summary: SessionSummary) => void;
@@ -44,14 +45,14 @@ function drawPose(ctx: CanvasRenderingContext2D, pose: PoseFrame | null) {
   }
 }
 
-export function LiveSession({ exercise, model, speaker, onDone }: Props) {
+export function LiveSession({ exercise, body, model, speaker, onDone }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const sessionRef = useRef(new Session(exercise));
   const [status, setStatus] = useState<Status>({ kind: "loading" });
   const [hud, setHud] = useState<Hud>({ update: null, cue: null, lastRep: null, fps: 0 });
   const [showMetrics, setShowMetrics] = useState(false);
-  const config = useRef(createExercise(exercise).config).current;
+  const config = useRef(createExercise(exercise, body).config).current;
 
   useEffect(() => {
     let cancelled = false;
@@ -94,7 +95,7 @@ export function LiveSession({ exercise, model, speaker, onDone }: Props) {
       document.addEventListener("visibilitychange", onVisible);
       setStatus({ kind: "running" });
 
-      const ex = createExercise(exercise);
+      const ex = createExercise(exercise, body);
       const smoother = new PoseSmoother();
       const cues = new CueManager(2, 4, speaker.say);
       const ctx = canvasRef.current!.getContext("2d")!;
@@ -145,7 +146,7 @@ export function LiveSession({ exercise, model, speaker, onDone }: Props) {
       landmarker?.close();
       speechSynthesis?.cancel();
     };
-  }, [exercise, model, speaker]);
+  }, [exercise, body, model, speaker]);
 
   const { update, cue, lastRep, fps } = hud;
   let verdict: { text: string; tone: string } | null = null;

@@ -6,7 +6,7 @@ import { parse } from "yaml";
 import curlYaml from "../../../cleanreps/rules/curl.yaml?raw";
 import pushupYaml from "../../../cleanreps/rules/pushup.yaml?raw";
 import squatYaml from "../../../cleanreps/rules/squat.yaml?raw";
-import { Exercise, parseConfig, type Metrics } from "./exercise";
+import { AVERAGE_BODY, Exercise, forBody, parseConfig, type Body, type Metrics } from "./exercise";
 import { angle, angleFromVertical, lineOffset } from "./geometry";
 import { LEFT, RIGHT, type PoseFrame } from "./pose";
 
@@ -66,10 +66,10 @@ const DEFS: Record<string, ExerciseDef> = {
 
 export const EXERCISE_KEYS = Object.keys(DEFS);
 
-export function createExercise(key: string): Exercise<PoseFrame> {
+export function createExercise(key: string, body: Body = AVERAGE_BODY): Exercise<PoseFrame> {
   const def = DEFS[key];
   if (!def) throw new Error(`unknown exercise ${JSON.stringify(key)}`);
-  return new Exercise(key, parseConfig(parse(def.yaml)), def.metrics, (pose) => {
+  return new Exercise(key, forBody(parseConfig(parse(def.yaml)), body), def.metrics, (pose) => {
     const m: Metrics = Object.fromEntries(def.metrics.map((n) => [n, null]));
     def.compute(pose, m);
     return m;

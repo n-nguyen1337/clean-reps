@@ -28,3 +28,15 @@ rules:
     min_frames: 4
     cue: Push your knees out
     priority: 2
+
+# Body proportions shift a rule's limits (min and max) by these amounts.
+# To keep balance over midfoot, the hips have to sit back as far as the
+# femurs reach, so long femurs relative to the torso force more forward lean.
+# Average proportions use the limits above unchanged.
+proportions:
+  femur:
+    long: {torso_lean: 8}
+    short: {torso_lean: -5}
+  torso:
+    long: {torso_lean: -5}
+    short: {torso_lean: 7}
