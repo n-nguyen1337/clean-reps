@@ -1,0 +1,48 @@
+{
+  "exercise": "squat",
+  "person": "p1",
+  "split": "tune",
+  "note": "Front view, phone at hip height. 8 deep squats.",
+  "reps": [
+    {
+      "bottom_s": 5.7,
+      "counted": true,
+      "faults": []
+    },
+    {
+      "bottom_s": 9.2,
+      "counted": true,
+      "faults": []
+    },
+    {
+      "bottom_s": 12.6,
+      "counted": true,
+      "faults": []
+    },
+    {
+      "bottom_s": 15.8,
+      "counted": true,
+      "faults": []
+    },
+    {
+      "bottom_s": 19.9,
+      "counted": true,
+      "faults": []
+    },
+    {
+      "bottom_s": 23.1,
+      "counted": true,
+      "faults": []
+    },
+    {
+      "bottom_s": 26.3,
+      "counted": true,
+      "faults": []
+    },
+    {
+      "bottom_s": 29.2,
+      "counted": true,
+      "faults": []
+    }
+  ]
+}
