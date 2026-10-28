@@ -146,6 +146,7 @@ export function AchievementBoard({ prog, sets, onOpen, onBack }: {
 
   return (
     <main className="page">
+      <a className="back-link" href="#/progress" onClick={(e) => { e.preventDefault(); onBack(); }}>‹ Progress</a>
       <h1>Achievements</h1>
       <LevelCard level={prog.level} unlocked={count} />
       <div className="segmented" style={{ gridTemplateColumns: `repeat(${FILTERS.length}, 1fr)` }}>
@@ -164,9 +165,6 @@ export function AchievementBoard({ prog, sets, onOpen, onBack }: {
         );
       })}
       {shown.length === 0 && <p className="hint">Nothing unlocked yet. Finish a set to earn your first achievement.</p>}
-      <div className="row">
-        <button className="primary" onClick={onBack}>Back to progress</button>
-      </div>
       {sheet}
     </main>
   );

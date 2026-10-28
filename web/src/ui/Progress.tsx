@@ -13,7 +13,7 @@ const topFault = (set: SetRecord): string | null => {
   return id === "partial" ? "Partial reps" : set.config.rules.find((r) => r.id === id)?.cue ?? id;
 };
 
-const HISTORY_SHOWN = 10;
+const HISTORY_SHOWN = 3;
 
 function ExerciseProgress({ sets, onOpen }: { sets: SetRecord[]; onOpen: (set: SetRecord) => void }) {
   const now = useMemo(() => new Date(), []);
@@ -27,6 +27,31 @@ function ExerciseProgress({ sets, onOpen }: { sets: SetRecord[]; onOpen: (set: S
 
   return (
     <>
+      <h2>History</h2>
+      <ul className="history">
+        {history.map((set) => {
+          const s = set.summary;
+          const fault = topFault(set);
+          return (
+            <li key={set.id}>
+              <button onClick={() => onOpen(set)}>
+                <span className="when">
+                  {new Date(s.started).toLocaleString(undefined, { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
+                </span>
+                <b>{s.reps} reps · {s.cleanReps} clean</b>
+                <span>{fault ?? "No faults"}</span>
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+      {sets.length > HISTORY_SHOWN && (
+        <button className="ghost show-all" onClick={() => setShowAll((v) => !v)}>
+          {showAll ? "Show fewer" : `Show all ${sets.length} sets`}
+        </button>
+      )}
+
+      <h2>Overview</h2>
       <div className="stats">
         <div><b>{sets.length}</b><span>{sets.length === 1 ? "set" : "sets"}</span></div>
         <div><b>{totalReps}</b><span>reps</span></div>
@@ -52,29 +77,6 @@ function ExerciseProgress({ sets, onOpen }: { sets: SetRecord[]; onOpen: (set: S
       </div>
       {points.length < 2 && <p className="hint">Trend charts appear after your second set.</p>}
 
-      <h2>History</h2>
-      <ul className="history">
-        {history.map((set) => {
-          const s = set.summary;
-          const fault = topFault(set);
-          return (
-            <li key={set.id}>
-              <button onClick={() => onOpen(set)}>
-                <span className="when">
-                  {new Date(s.started).toLocaleString(undefined, { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
-                </span>
-                <b>{s.reps} reps · {s.cleanReps} clean</b>
-                <span>{fault ?? "No faults"}</span>
-              </button>
-            </li>
-          );
-        })}
-      </ul>
-      {sets.length > HISTORY_SHOWN && (
-        <button className="ghost show-all" onClick={() => setShowAll((v) => !v)}>
-          {showAll ? "Show fewer" : `Show all ${sets.length} sets`}
-        </button>
-      )}
     </>
   );
 }

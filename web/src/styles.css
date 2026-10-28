@@ -258,6 +258,7 @@ button:disabled { opacity: 0.5; cursor: default; }
 a { color: var(--accent); }
 a.button { display: inline-block; text-decoration: none; text-align: center; border-radius: 10px; border: 1px solid var(--border); padding: 10px 16px; background: var(--surface); color: var(--text); }
 a.button.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); font-weight: 600; }
+.back-link { display: inline-flex; align-items: center; min-height: 44px; margin: calc(-1 * var(--space-2)) 0 var(--space-1); color: var(--accent); font-weight: 500; text-decoration: none; }
 .text-link { color: var(--accent); font-weight: 500; text-decoration: none; }
 
 .shell .page { padding-top: var(--space-5); padding-bottom: calc(var(--tabbar-h) + var(--safe-bottom) + var(--space-6)); }

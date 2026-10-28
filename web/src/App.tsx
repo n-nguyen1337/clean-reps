@@ -121,17 +121,17 @@ export function App() {
       } else if (!set) {
         page = (
           <main className="page">
+            <a className="back-link" href="#/progress">‹ Progress</a>
             <h1>Set not found</h1>
             <p className="lede">It may have been deleted, or it hasn't synced to this device yet.</p>
-            <div className="row"><a className="button primary" href="#/progress">Back to progress</a></div>
           </main>
         );
       } else {
         const earned = prog ? ACHIEVEMENTS.filter((d) => prog.unlocked[d.id]?.setId === set.id) : [];
         page = (
           <Summary key={set.id} record={toSessionRecord(set)} previous={previousSet(sets, set)}
-            progress={<EarnedInSet xp={setXp(set.summary)} earned={earned} />}>
-            <button className="primary" onClick={() => navigate({ page: "progress" })}>Back to progress</button>
+            progress={<EarnedInSet xp={setXp(set.summary)} earned={earned} />}
+            back={<a className="back-link" href="#/progress">‹ Progress</a>}>
             <button className="ghost danger" onClick={async () => {
               if (!confirm("Delete this set from your history?")) return;
               await deleteSet(set.id);
