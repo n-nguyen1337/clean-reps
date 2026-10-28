@@ -4,6 +4,24 @@ import type { ModelVariant } from "../pose/landmarker";
 import type { Settings as SettingsValue } from "../store/settings";
 import { AccountPanel } from "./AccountPanel";
 
+/** Dev builds only: fill or clear local history, for trying the app without a camera. */
+function SampleData() {
+  const run = (action: "seedSampleSets" | "clearSampleSets") => async () => {
+    const n = await (await import("../dev/seed"))[action]();
+    alert(action === "seedSampleSets" ? `Added ${n} sample sets.` : `Removed ${n} sample sets.`);
+  };
+  return (
+    <>
+      <h2>Sample data (dev only)</h2>
+      <p className="lede">Generated sets stay on this device and never sync to your account.</p>
+      <div className="row">
+        <button onClick={run("seedSampleSets")}>Add sample sets</button>
+        <button className="ghost danger" onClick={run("clearSampleSets")}>Remove sample sets</button>
+      </div>
+    </>
+  );
+}
+
 const BUILD_QUESTIONS: { segment: keyof Body; question: string; hint: string }[] = [
   { segment: "femur", question: "Your thighs (femurs)", hint: "Compared with your torso. Long femurs need more forward lean." },
   { segment: "torso", question: "Your torso", hint: "Compared with your legs. A short torso needs more forward lean." },
@@ -18,6 +36,13 @@ export function Settings({ settings, onChange, configs }: {
   return (
     <main className="page">
       <h1>Settings</h1>
+
+      <h2>Account</h2>
+      <AccountPanel />
+
+      <h2>Support cleanReps</h2>
+      <p className="lede">cleanReps is free. Donations help cover hosting and the AI coach.</p>
+      <a className="button donate" href="https://ko-fi.com/nnguyen" target="_blank" rel="noopener">Donate</a>
 
       {buildFor.length > 0 && (
         <>
@@ -57,12 +82,7 @@ export function Settings({ settings, onChange, configs }: {
         </select>
       </label>
 
-      <h2>Account</h2>
-      <AccountPanel />
-
-      <h2>Support cleanReps</h2>
-      <p className="lede">cleanReps is free. Donations help cover hosting and the AI coach.</p>
-      <a className="button donate" href="https://ko-fi.com/nnguyen" target="_blank" rel="noopener">Donate</a>
+      {import.meta.env.DEV && <SampleData />}
     </main>
   );
 }

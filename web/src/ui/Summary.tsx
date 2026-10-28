@@ -90,12 +90,14 @@ function SinceLast({ current, previous }: { current: SessionRecord["summary"]; p
   );
 }
 
-export function Summary({ record, previous, playback, progress, children }: {
+export function Summary({ record, previous, playback, progress, back, children }: {
   record: SessionRecord; previous?: SetRecord | null;
   /** The set's recording, right after it ends. Past sets have none. */
   playback?: Playback | null;
   /** XP, level and achievements the set earned. */
   progress?: ReactNode;
+  /** Link back to where the user came from, shown above the title. */
+  back?: ReactNode;
   children: ReactNode;
 }) {
   const account = useAccount();
@@ -127,6 +129,7 @@ export function Summary({ record, previous, playback, progress, children }: {
 
   return (
     <main className="page">
+      {back}
       <h1>{cfg.name}</h1>
       <div className="stats">
         <div><b>{s.reps}</b><span>reps</span></div>
