@@ -10,9 +10,11 @@ import { deleteSet, saveSet, saveUnlocks, useSets, useUnlocks } from "./store/db
 import { setXp } from "./store/level";
 import { previousSet } from "./store/progress";
 import { toSessionRecord, toSetRecord, type SetRecord } from "./store/record";
+import { acceptDisclaimer, disclaimerAccepted } from "./store/consent";
 import { useSettings } from "./store/settings";
 import { About } from "./ui/About";
 import { AchievementBoard, EarnedInSet, SetProgressPanel } from "./ui/Achievements";
+import { Disclaimer } from "./ui/Disclaimer";
 import { Home } from "./ui/Home";
 import { LiveSession } from "./ui/LiveSession";
 import { Progress } from "./ui/Progress";
@@ -32,6 +34,7 @@ export function App() {
   const [session, setSession] = useState<Session | null>(null);
   const [settings, updateSettings] = useSettings();
   const [picked, setPicked] = useState<string | null>(null);
+  const [accepted, setAccepted] = useState(disclaimerAccepted);
   const sets = useSets();
   const unlocks = useUnlocks();
   const account = useAccount();
@@ -81,6 +84,10 @@ export function App() {
   if (session?.kind === "live") {
     return <LiveSession exercise={session.exercise} body={settings.body} model={settings.model} speaker={speaker}
       recordVideo={settings.replay} finishNow={session.ending}
+      onCancel={() => {
+        setSession(null); // nothing to summarise; the popstate that follows finds no live set to end
+        closeSession();
+      }}
       onDone={(record, playback) => {
         const set = toSetRecord(record);
         if (record.reps.length > 0) saveSet(set).then(account.requestSync).catch(() => {});
@@ -151,5 +158,10 @@ export function App() {
       break;
   }
 
-  return <Shell route={route}>{page}</Shell>;
+  return (
+    <Shell route={route}>
+      {page}
+      {!accepted && <Disclaimer onAccept={() => { acceptDisclaimer(); setAccepted(true); }} />}
+    </Shell>
+  );
 }

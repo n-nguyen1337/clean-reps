@@ -95,8 +95,6 @@ export function Home({ sets, prog, configs, exercise, onExercise, settings, onSt
         <span className="text-link">Change</span>
       </a>
 
-      <p className="disclaimer">Not medical advice. Cues are starting points; stop if anything hurts.</p>
-
       <div className="start-bar">
         <button className="primary big" onClick={onStart}>Start {configs[exercise].name.toLowerCase()}</button>
       </div>
