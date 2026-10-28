@@ -3,6 +3,7 @@ import { useAccount } from "./cloud/account";
 import { EXERCISE_KEYS, createExercise } from "./engine/exercises";
 import { Speaker } from "./engine/feedback";
 import type { SessionRecord } from "./engine/session";
+import { labEnabled } from "./playback/lab";
 import type { Playback } from "./playback/playback";
 import { navigate, useRoute } from "./route";
 import { ACHIEVEMENTS, progression, setProgress } from "./store/achievements";
@@ -16,7 +17,8 @@ import { About } from "./ui/About";
 import { AchievementBoard, EarnedInSet, SetProgressPanel } from "./ui/Achievements";
 import { Disclaimer } from "./ui/Disclaimer";
 import { Home } from "./ui/Home";
-import { LiveSession } from "./ui/LiveSession";
+import { LabExport } from "./ui/LabExport";
+import { LiveSession, type LabCapture } from "./ui/LiveSession";
 import { Progress } from "./ui/Progress";
 import { Settings } from "./ui/Settings";
 import { Shell } from "./ui/Shell";
@@ -25,7 +27,7 @@ import { Summary } from "./ui/Summary";
 /** A set in progress or just finished: full screen over the current page, with no URL of its own. */
 type Session =
   | { kind: "live"; exercise: string; ending?: boolean }
-  | { kind: "summary"; record: SessionRecord; set: SetRecord; playback: Playback | null };
+  | { kind: "summary"; record: SessionRecord; set: SetRecord; playback: Playback | null; lab: LabCapture | null };
 
 export function App() {
   const configs = useMemo(() => Object.fromEntries(EXERCISE_KEYS.map((k) => [k, createExercise(k).config])), []);
@@ -35,6 +37,7 @@ export function App() {
   const [settings, updateSettings] = useSettings();
   const [picked, setPicked] = useState<string | null>(null);
   const [accepted, setAccepted] = useState(disclaimerAccepted);
+  const lab = useMemo(() => labEnabled(), []);
   const sets = useSets();
   const unlocks = useUnlocks();
   const account = useAccount();
@@ -83,15 +86,15 @@ export function App() {
 
   if (session?.kind === "live") {
     return <LiveSession exercise={session.exercise} body={settings.body} model={settings.model} speaker={speaker}
-      recordVideo={settings.replay} finishNow={session.ending}
+      recordVideo={settings.replay || lab} lab={lab} finishNow={session.ending}
       onCancel={() => {
         setSession(null); // nothing to summarise; the popstate that follows finds no live set to end
         closeSession();
       }}
-      onDone={(record, playback) => {
+      onDone={(record, playback, capture) => {
         const set = toSetRecord(record);
         if (record.reps.length > 0) saveSet(set).then(account.requestSync).catch(() => {});
-        openSession({ kind: "summary", record, set, playback });
+        openSession({ kind: "summary", record, set, playback, lab: capture });
       }} />;
   }
 
@@ -101,6 +104,7 @@ export function App() {
         progress={setProg && <SetProgressPanel progress={setProg} />}>
         <button className="primary" onClick={start}>Go again</button>
         <button className="ghost" onClick={closeSession}>Done</button>
+        {session.lab && <LabExport record={session.record} capture={session.lab} />}
       </Summary>
     );
   }

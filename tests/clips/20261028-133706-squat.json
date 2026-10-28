@@ -1,0 +1,43 @@
+{
+  "exercise": "squat",
+  "person": "p1",
+  "split": "tune",
+  "note": "Front view, phone on the floor. 7 squats; 4.1s and 5.3s were setup at the phone.",
+  "reps": [
+    {
+      "bottom_s": 8.6,
+      "counted": true,
+      "faults": []
+    },
+    {
+      "bottom_s": 11.2,
+      "counted": true,
+      "faults": []
+    },
+    {
+      "bottom_s": 13.9,
+      "counted": true,
+      "faults": []
+    },
+    {
+      "bottom_s": 16.6,
+      "counted": true,
+      "faults": []
+    },
+    {
+      "bottom_s": 19.2,
+      "counted": true,
+      "faults": []
+    },
+    {
+      "bottom_s": 21.8,
+      "counted": true,
+      "faults": []
+    },
+    {
+      "bottom_s": 24.2,
+      "counted": true,
+      "faults": []
+    }
+  ]
+}

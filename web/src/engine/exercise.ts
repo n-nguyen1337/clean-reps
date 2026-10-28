@@ -47,6 +47,12 @@ export interface ExerciseConfig {
   bottomThreshold: number;
   hysteresis: number;
   minExcursion: number;
+  /** Time at the top, tracked, before the first rep can start. */
+  readyS: number;
+  /** Learn the top as (standing - margin) while settling; null keeps topThreshold. */
+  topMargin: number | null;
+  /** The lowest a learned top can go. */
+  topFloor: number | null;
   partialCue: string | null;
   cameraHint: string;
   rules: Rule[];
@@ -77,11 +83,25 @@ export interface ExerciseUpdate {
   tracking: boolean;
   cues: Cue[];
   completed: RepResult | null;
+  /** False until the user has settled at the top. */
+  ready: boolean;
 }
 
 export const isClean = (r: RepResult) => r.counted && r.faults.length === 0;
 
 const missing = (v: number | null | undefined): v is null | undefined => v == null || Number.isNaN(v);
+
+/** The lower quartile of how the user stands sets their top (see topMargin). */
+const STANDING_QUANTILE = 0.25;
+
+/** Linear interpolation between closest ranks, as numpy's default (and base.py's quantile). */
+export function quantile(values: number[], q: number): number {
+  const s = [...values].sort((a, b) => a - b);
+  const pos = q * (s.length - 1);
+  const lo = Math.floor(pos);
+  const hi = Math.min(lo + 1, s.length - 1);
+  return s[lo] + (s[hi] - s[lo]) * (pos - lo);
+}
 
 export function violated(rule: Rule, value: number | null | undefined): boolean {
   if (missing(value)) return false;
@@ -107,6 +127,9 @@ export function parseConfig(data: Record<string, any>): ExerciseConfig {
     bottomThreshold: data.bottom_threshold,
     hysteresis: data.hysteresis ?? 8,
     minExcursion: data.min_excursion ?? 25,
+    readyS: data.ready_s ?? 0.75,
+    topMargin: data.top_margin ?? null,
+    topFloor: data.top_floor ?? null,
     partialCue: data.partial_cue ?? null,
     cameraHint: data.camera_hint ?? "",
     rules,
@@ -114,6 +137,10 @@ export function parseConfig(data: Record<string, any>): ExerciseConfig {
   };
   if (cfg.bottomThreshold >= cfg.topThreshold) {
     throw new Error("bottom_threshold must be below top_threshold");
+  }
+  if (cfg.topMargin !== null && (cfg.topFloor === null || !(cfg.bottomThreshold < cfg.topFloor - cfg.hysteresis)
+    || cfg.topFloor > cfg.topThreshold)) {
+    throw new Error("top_margin needs a top_floor between bottom_threshold + hysteresis and top_threshold");
   }
   const ruleIds = new Set(rules.map((r) => r.id));
   for (const [segment, sizes] of Object.entries(cfg.proportions)) {
@@ -187,6 +214,14 @@ export class Exercise<P> {
   reps = 0;
   private rep: RepTracker | null = null;
   private lastSeen: number | null = null;
+  /** Nothing counts until the user has held the top for readyS: getting up from the camera isn't a rep. */
+  ready = false;
+  private settling: number[] = []; // primary metric while settling
+  private settlingSince: number | null = null;
+  /** This set's top threshold, learned from how the user stands once settled (see topMargin). */
+  top: number;
+  /** The user's standing value of the primary metric, once learned. */
+  standing: number | null = null;
   private liveRules: Rule[];
   private repRules: Rule[];
 
@@ -203,6 +238,7 @@ export class Exercise<P> {
     }
     this.liveRules = config.rules.filter((r) => r.aggregate === null);
     this.repRules = config.rules.filter((r) => r.aggregate !== null);
+    this.top = config.topThreshold;
   }
 
   reset(): void {
@@ -210,6 +246,24 @@ export class Exercise<P> {
     this.reps = 0;
     this.rep = null;
     this.lastSeen = null;
+    this.unsettle();
+  }
+
+  private unsettle(): void {
+    this.ready = false;
+    this.settling = [];
+    this.settlingSince = null;
+    this.top = this.config.topThreshold;
+    this.standing = null;
+  }
+
+  private settle(): void {
+    this.ready = true;
+    const cfg = this.config;
+    if (cfg.topMargin !== null) {
+      this.standing = quantile(this.settling, STANDING_QUANTILE);
+      this.top = Math.min(cfg.topThreshold, Math.max(cfg.topFloor!, this.standing - cfg.topMargin));
+    }
   }
 
   update(input: P | null, t: number): ExerciseUpdate {
@@ -219,14 +273,28 @@ export class Exercise<P> {
     if (missing(value)) return this.lost(metrics, t);
     this.lastSeen = t;
 
+    const cfg = this.config;
+    if (!this.ready) {
+      if (value < cfg.topThreshold - cfg.hysteresis) {
+        this.settlingSince = null;
+        this.settling = [];
+      } else {
+        if (this.settlingSince === null) this.settlingSince = t;
+        this.settling.push(value);
+      }
+      if (this.settlingSince === null || t - this.settlingSince < cfg.readyS) {
+        return { phase: this.phase, reps: this.reps, metrics, tracking: true, cues: [], completed: null, ready: false };
+      }
+      this.settle();
+    }
+
     const cues: Cue[] = [];
     if (this.rep !== null) cues.push(...this.rep.observe(metrics, t, this.liveRules));
 
-    const cfg = this.config;
     let completed: RepResult | null = null;
     switch (this.phase) {
       case "top":
-        if (value < cfg.topThreshold - cfg.hysteresis) {
+        if (value < this.top - cfg.hysteresis) {
           this.phase = "descending";
           this.rep = new RepTracker(t, cfg.primaryMetric);
           cues.push(...this.rep.observe(metrics, t, this.liveRules));
@@ -235,7 +303,7 @@ export class Exercise<P> {
       case "descending":
         if (value <= cfg.bottomThreshold) {
           this.phase = "bottom";
-        } else if (value >= cfg.topThreshold) {
+        } else if (value >= this.top) {
           completed = this.abort(t);
           if (completed !== null && cfg.partialCue) {
             cues.push({ id: "partial", text: cfg.partialCue, priority: 3 });
@@ -248,12 +316,12 @@ export class Exercise<P> {
       case "ascending":
         if (value <= cfg.bottomThreshold) {
           this.phase = "bottom";
-        } else if (value >= cfg.topThreshold) {
+        } else if (value >= this.top) {
           completed = this.complete(t, cues);
         }
         break;
     }
-    return { phase: this.phase, reps: this.reps, metrics, tracking: true, cues, completed };
+    return { phase: this.phase, reps: this.reps, metrics, tracking: true, cues, completed, ready: true };
   }
 
   private lost(metrics: Metrics, t: number): ExerciseUpdate {
@@ -262,11 +330,29 @@ export class Exercise<P> {
     if (lostFor >= LOST_CUE_AFTER_S) {
       cues.push({ id: "tracking", text: "Step back so your whole body is visible", priority: 1 });
     }
-    if (lostFor >= LOST_ABORT_AFTER_S && this.rep !== null) {
+    this.settlingSince = null; // settling needs unbroken tracking
+    this.settling = [];
+    if (lostFor >= LOST_ABORT_AFTER_S && this.ready) {
       this.phase = "top";
       this.rep = null;
+      this.unsettle(); // whoever comes back may stand differently
     }
-    return { phase: this.phase, reps: this.reps, metrics, tracking: false, cues, completed: null };
+    return { phase: this.phase, reps: this.reps, metrics, tracking: false, cues, completed: null, ready: this.ready };
+  }
+
+  /** Rep rules the rep breaks, judged on each metric's extreme over the rep. */
+  private broken(rep: RepTracker): Rule[] {
+    return this.repRules.filter((rule) => {
+      const extreme = rep.extremes[rule.metric];
+      if (extreme === undefined) return false;
+      const value = rule.aggregate === "min" ? extreme[0] : extreme[1];
+      return violated(rule, value) && !rep.faults.includes(rule.id);
+    });
+  }
+
+  /** The noRep rules that fired: the movement wasn't the exercise. */
+  private blocking(rep: RepTracker, broken: Rule[]): Rule[] {
+    return this.config.rules.filter((r) => r.noRep && (broken.includes(r) || rep.faults.includes(r.id)));
   }
 
   private complete(t: number, cues: Cue[]): RepResult {
@@ -274,21 +360,19 @@ export class Exercise<P> {
     this.rep = null;
     this.phase = "top";
 
-    for (const rule of this.repRules) {
-      const extreme = rep.extremes[rule.metric];
-      if (extreme === undefined) continue;
-      const value = rule.aggregate === "min" ? extreme[0] : extreme[1];
-      if (violated(rule, value) && !rep.faults.includes(rule.id)) {
-        rep.faults.push(rule.id);
-        cues.push({ id: rule.id, text: rule.cue, priority: rule.priority });
-      }
-    }
-
-    if (this.config.rules.some((r) => r.noRep && rep.faults.includes(r.id))) {
+    const broken = this.broken(rep);
+    const blocking = this.blocking(rep, broken);
+    if (blocking.length) {
+      // Not the exercise at all: say only why, not how to do it better.
+      for (const r of blocking) if (broken.includes(r)) cues.push({ id: r.id, text: r.cue, priority: r.priority });
       return {
         counted: false, index: null, startS: rep.startS, bottomS: rep.bottomS, endS: t,
-        faults: rep.faults, extremes: rep.extremes,
+        faults: blocking.map((r) => r.id), extremes: rep.extremes,
       };
+    }
+    for (const r of broken) {
+      rep.faults.push(r.id);
+      cues.push({ id: r.id, text: r.cue, priority: r.priority });
     }
 
     this.reps += 1;
@@ -307,7 +391,11 @@ export class Exercise<P> {
     this.rep = null;
     this.phase = "top";
     const lowest = rep.extremes[this.config.primaryMetric]?.[0] ?? Infinity;
-    if (this.config.topThreshold - lowest < this.config.minExcursion) return null;
+    // Depth from standing (at most topThreshold), not from a lower learned top.
+    const standing = this.standing === null ? this.top : Math.min(this.standing, this.config.topThreshold);
+    if (standing - lowest < this.config.minExcursion) return null;
+    // Not an attempt at the exercise, such as walking up to the camera.
+    if (this.blocking(rep, this.broken(rep)).length) return null;
     return {
       counted: false, index: null, startS: rep.startS, bottomS: rep.bottomS, endS: t,
       faults: ["partial"], extremes: rep.extremes,

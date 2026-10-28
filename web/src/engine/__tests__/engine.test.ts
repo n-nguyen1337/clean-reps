@@ -2,7 +2,7 @@
 // (port of tests/test_exercise_engine.py).
 
 import { describe, expect, it } from "vitest";
-import { Exercise, forBody, isClean, parseConfig, type Body, type ExerciseUpdate, type Metrics, type Rule } from "../exercise";
+import { Exercise, forBody, isClean, parseConfig, quantile, type Body, type ExerciseConfig, type ExerciseUpdate, type Metrics, type Rule } from "../exercise";
 import { EXERCISE_KEYS, createExercise } from "../exercises";
 import { CueManager } from "../feedback";
 import { Session } from "../session";
@@ -13,11 +13,18 @@ const rule = (r: Partial<Rule> & Pick<Rule, "id" | "metric" | "cue">): Rule =>
   ({ priority: 1, min: null, max: null, aggregate: null, minFrames: 3, noRep: false, ...r });
 
 function makeExercise(...rules: Rule[]) {
+  return configuredExercise({}, ...rules);
+}
+
+function configuredExercise(options: Partial<ExerciseConfig>, ...rules: Rule[]) {
   return new Exercise<Metrics>("fake", {
     name: "Fake", primaryMetric: "angle", topThreshold: 160, bottomThreshold: 110,
-    hysteresis: 8, minExcursion: 25, partialCue: "Go deeper", cameraHint: "", rules, proportions: {},
+    hysteresis: 8, minExcursion: 25, readyS: 0, topMargin: null, topFloor: null, partialCue: "Go deeper",
+    cameraHint: "", rules, proportions: {}, ...options,
   }, ["angle", "lean"], (m) => m);
 }
+
+const full = (n: number, v: number) => Array.from({ length: n }, () => v);
 
 /** One smooth rep: high -> low -> high. */
 function repCurve(low: number, high = 175, frames = 60): number[] {
@@ -80,6 +87,23 @@ describe("exercise engine", () => {
     expect(updates.slice(0, 60).flatMap((u) => u.cues.map((c) => c.id))).toEqual(["hinge"]);
   });
 
+  it("reports only why a blocked rep didn't count", () => {
+    const ex = makeExercise(
+      rule({ id: "depth", metric: "angle", aggregate: "min", max: 100, cue: "Deeper", priority: 3 }),
+      rule({ id: "hinge", metric: "lean", aggregate: "max", max: 100, noRep: true, cue: "Hips back", priority: 3 }),
+    );
+    const updates = run(ex, repCurve(105), full(60, 150)); // shallow, and not the exercise
+    expect(completed(updates)).toMatchObject([{ counted: false, faults: ["hinge"] }]);
+    expect(updates.flatMap((u) => u.cues.map((c) => c.id))).toEqual(["hinge"]);
+  });
+
+  it("drops a partial that isn't the exercise", () => {
+    const ex = makeExercise(rule({ id: "hinge", metric: "lean", aggregate: "max", max: 100, noRep: true, cue: "Hips back", priority: 3 }));
+    const updates = run(ex, repCurve(125), full(60, 150)); // like walking up to the camera
+    expect(completed(updates)).toEqual([]);
+    expect(updates.flatMap((u) => u.cues)).toEqual([]);
+  });
+
   it("needs consecutive frames for live rules and cues once", () => {
     const ex = makeExercise(rule({ id: "lean", metric: "lean", max: 45, cue: "Chest up" }));
     const angles = repCurve(90);
@@ -104,6 +128,79 @@ describe("exercise engine", () => {
     expect(ex.phase).toBe("top");
   });
 
+  it("waits for the user to settle at the top", () => {
+    const ex = configuredExercise({ readyS: 1 });
+    const gettingUp = Array.from({ length: 30 }, (_, i) => 60 + (115 * i) / 29); // rising from a crouch at the camera
+    let updates = run(ex, [...gettingUp, ...full(9, 175), ...repCurve(90)]); // with the end of getting up, under 1 s at the top
+    expect(completed(updates)).toEqual([]);
+    expect(updates.flatMap((u) => u.cues)).toEqual([]);
+    expect(updates.at(-1)!.ready).toBe(false);
+
+    updates = run(ex, [...full(30, 175), ...repCurve(90)], undefined, 99 / FPS);
+    expect(updates.at(-1)!.ready).toBe(true);
+    expect(completed(updates)).toMatchObject([{ counted: true, index: 1 }]);
+  });
+
+  it("settles again after losing tracking", () => {
+    const ex = configuredExercise({ readyS: 1 });
+    run(ex, full(40, 175));
+    expect(ex.ready).toBe(true);
+    let last!: ExerciseUpdate;
+    for (let i = 0; i < 90; i++) last = ex.update(null, (40 + i) / FPS);
+    expect(last.ready).toBe(false);
+    expect(completed(run(ex, repCurve(90), undefined, 130 / FPS))).toEqual([]);
+  });
+
+  it("learns the top from how the user stands", () => {
+    const ex = configuredExercise({ readyS: 1, topMargin: 10, topFloor: 130 });
+    run(ex, full(31, 156)); // stands at 156 while settling
+    expect([ex.ready, ex.standing, ex.top]).toEqual([true, 156, 146]);
+    // Each rep only comes back up to 155: under the configured 160, over the learned 146.
+    const reps = completed(run(ex, [...repCurve(90, 155), ...repCurve(90, 155), ...repCurve(90, 155)], undefined, 31 / FPS));
+    expect(reps.map((r) => r.counted)).toEqual([true, true, true]);
+  });
+
+  it("measures partial reps from standing, not the learned top", () => {
+    const ex = configuredExercise({ readyS: 1, topMargin: 10, topFloor: 130 });
+    run(ex, full(31, 160));
+    expect(ex.top).toBe(150);
+    // 28 below standing is a real attempt, though only 18 below the learned top.
+    const [rep] = completed(run(ex, repCurve(132, 160), undefined, 31 / FPS));
+    expect(rep).toMatchObject({ counted: false, faults: ["partial"] });
+  });
+
+  it("takes quantiles like numpy", () => {
+    const values = [3, 1, 4, 1.5, 9, 2.6];
+    // numpy.quantile(values, [0, 0.25, 0.5, 0.9, 1])
+    expect([0, 0.25, 0.5, 0.9, 1].map((q) => quantile(values, q))).toEqual([1, 1.775, 2.8, 6.5, 9].map((v) => expect.closeTo(v, 9)));
+  });
+
+  it("keeps the learned top within its limits", () => {
+    const tall = configuredExercise({ readyS: 1, topMargin: 10, topFloor: 145 });
+    run(tall, full(31, 178));
+    expect(tall.top).toBe(160); // never stricter than configured
+    const bent = configuredExercise({ readyS: 1, topMargin: 10, topFloor: 145 });
+    run(bent, full(31, 153));
+    expect(bent.top).toBe(145);
+  });
+
+  it("relearns the top after losing tracking", () => {
+    const ex = configuredExercise({ readyS: 1, topMargin: 10, topFloor: 130 });
+    run(ex, full(31, 170));
+    expect(ex.top).toBe(160);
+    for (let i = 0; i < 90; i++) ex.update(null, (31 + i) / FPS);
+    expect([ex.ready, ex.standing]).toEqual([false, null]);
+    run(ex, full(31, 156), undefined, 121 / FPS);
+    expect(ex.top).toBe(146);
+  });
+
+  it("needs a sensible floor for a learned top", () => {
+    const base = { name: "X", primary_metric: "a", top_threshold: 160, bottom_threshold: 120, top_margin: 10 };
+    for (const extra of [{}, { top_floor: 125 }, { top_floor: 165 }]) {
+      expect(() => parseConfig({ ...base, ...extra })).toThrow(/top_floor/);
+    }
+  });
+
   it("rejects unknown metrics in the config", () => {
     expect(() => makeExercise(rule({ id: "x", metric: "nope", cue: "x", max: 1 }))).toThrow();
   });
@@ -120,10 +217,10 @@ describe("body proportions", () => {
   };
 
   it("shifts the squat lean limit, leaving other rules alone", () => {
-    expect(limits("average", "average")).toEqual([50, 100]);
-    expect(limits("long", "short")).toEqual([65, 100]);
-    expect(limits("short", "long")).toEqual([40, 100]);
-    expect(limits("long", "long")).toEqual([53, 100]);
+    expect(limits("average", "average")).toEqual([50, 0.58]);
+    expect(limits("long", "short")).toEqual([65, 0.58]);
+    expect(limits("short", "long")).toEqual([40, 0.58]);
+    expect(limits("long", "long")).toEqual([53, 0.58]);
   });
 
   it("shifts both limits of a rule", () => {

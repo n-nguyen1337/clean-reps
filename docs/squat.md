@@ -10,13 +10,13 @@ The TypeScript engine in [`web/src/engine/`](../web/src/engine/) is a port of th
 
 ## In short
 
-A rep **counts** when the knee angle drops from standing (≥ 160°) to below 120° and comes back up to standing, and the hips bent too (hip angle below 120° at some point in the rep). Bending only the knees isn't a squat, so it doesn't count.
+A rep **counts** when the knee angle drops from standing to below 120° and comes back up to standing (within 10° of how you stood when you got ready; see section 4), the hips bent (hip angle below 120°), and the hips dropped (below 0.74 of leg length over the ankles). Bending only the knees isn't a squat, and neither is hinging forward without sitting down, so neither counts.
 
 A counted rep is **clean** (and plays the chime) when none of these faults happened during it:
 
 | Fault | What it means | Measured as | Fault when | Cue |
 |---|---|---|---|---|
-| `depth` | Didn't squat deep enough | Lowest knee angle in the rep | above 100° | "Squat a little deeper" |
+| `depth` | Didn't squat deep enough | Lowest hip height in the rep (hips over ankles ÷ leg length) | above 0.58 | "Squat a little deeper" |
 | `torso_lean` | Chest dropped forward too far | Torso angle from vertical (side view) | above 50° (40–65° depending on your build, see section 7) | "Chest up" |
 | `knee_valgus` | Knees caved inward | Knee spread ÷ ankle spread (front view) | below 0.8 for 4+ frames | "Push your knees out" |
 
@@ -26,6 +26,9 @@ These faults stop the rep from counting at all:
 |---|---|---|---|---|
 | `partial` | Started a squat but never reached the bottom | Knee angle didn't reach 120° | dip of 25° or more | "Go deeper" |
 | `hip_hinge` | Bent the knees but not the hips | Lowest hip angle in the rep | above 120° | "Sit your hips back" |
+| `hips_high` | Hinged forward without sitting down, as in an RDL | Lowest hip height in the rep | above 0.74 | "Bend your knees and sit down" |
+
+A rep stopped by `hip_hinge` or `hips_high` reports only that fault, not depth or form: it wasn't a squat. A dip that would be a `partial` is dropped silently if one of them fires, so walking up to the phone at the end of a set isn't a partial rep.
 
 The rest of this document explains where each of these numbers comes from.
 
@@ -49,12 +52,12 @@ Some faults can only be seen from certain angles, so the squat first works out h
 
 | Camera view | What can be judged |
 |---|---|
-| Side | Depth, hip hinge, torso lean |
-| Front | Depth, hip hinge, knee tracking (valgus) |
+| Side | Depth, hip hinge, hips staying high, torso lean |
+| Front | Depth, hip hinge, hips staying high, knee tracking (valgus) |
 
 That is why the camera hint says: *"Side view for depth and torso lean; front view for knee tracking."*
 
-## 3. The four squat metrics
+## 3. The five squat metrics
 
 These are computed on every frame ([`squat.py`](../cleanreps/exercises/squat.py)).
 
@@ -66,11 +69,29 @@ The angle at the knee between the thigh (knee → hip) and the shin (knee → an
 - About **90°** with thighs parallel to the floor
 - Smaller numbers mean a deeper squat
 
-This is the **primary metric**: it drives rep counting (section 4) and the depth check.
+This is the **primary metric**: it drives rep counting (section 4). It used to drive the depth check too, but from the front the model can't see the thighs moving toward or away from the camera, so a half squat and an RDL both read as 82–126°. Depth now comes from hip height.
 
 ### Hip angle
 
 The angle at the hip between the torso (hip → shoulder) and the thigh (hip → knee), in 3D. About **170°** standing, and typically **40–90°** at the bottom of a real squat. If it never drops below **120°**, the knees bent without the hips sitting back, and the rep doesn't count (`hip_hinge`).
+
+### Hip height
+
+How high the hips are over the ankles, as a fraction of leg length, using the side the engine picked (section 2), in 3D world coordinates:
+
+```
+hip_height = (ankle y − hip y) / (hip→knee length + knee→ankle length)
+```
+
+About **0.97** standing, **0.2–0.5** at or below parallel. Unlike the knee angle, it's mostly a vertical distance, which the model measures well from the front and the side alike. From clips recorded at home (front and side, phone on a table or the floor):
+
+| Movement | Lowest hip height |
+|---|---|
+| Deep squats | 0.18–0.52 |
+| Shallow squats | 0.65–0.70 |
+| RDLs and steps while walking | 0.78–0.88 |
+
+The two limits sit in the gaps: `depth` faults above **0.58**, and `hips_high` stops the rep from counting above **0.74**.
 
 ### Torso lean (side view only)
 
@@ -86,18 +107,18 @@ When the knees track over the toes, this is about 1.0 or higher. When the knees 
 
 ## 4. Counting a rep: the state machine
 
-Rep counting uses the knee angle and four phases:
+Rep counting uses the knee angle and four phases. *Top* is a threshold learned from how you stand (see "Learning how you stand" below), between 145° and 160°:
 
 ```
-            knee < 152°                knee ≤ 120°
+           knee < top − 8°             knee ≤ 120°
    TOP ─────────────────▶ DESCENDING ─────────────────▶ BOTTOM
     ▲                         │                           │
-    │        knee ≥ 160°      │                           │ knee > 128°
+    │        knee ≥ top       │                           │ knee > 128°
     │  (aborted: maybe a      │                           ▼
     │   partial rep)          │                       ASCENDING
     ◀─────────────────────────┘                           │
     ▲                                                     │
-    └──────────────── knee ≥ 160°: rep counted ◀──────────┘
+    └──────────────── knee ≥ top: rep counted ◀───────────┘
                       (and ASCENDING → BOTTOM again if knee ≤ 120°)
 ```
 
@@ -105,14 +126,21 @@ The thresholds come from `squat.yaml`:
 
 | Setting | Value | Role |
 |---|---|---|
-| `top_threshold` | 160° | Standing tall. A rep ends here. |
+| `top_threshold` | 160° | Standing tall. The most a learned top can be, and the top before one is learned. |
+| `top_margin` | 10° | Learned top = how you stand while getting ready, minus this. |
+| `top_floor` | 145° | The least a learned top can be. |
 | `bottom_threshold` | 120° | Deep enough to count as a rep. |
-| `hysteresis` | 8° | Dead band so noise near a threshold doesn't flip the phase back and forth. To *leave* TOP you must go below 160 − 8 = 152°. To *leave* BOTTOM you must go above 120 + 8 = 128°. |
+| `hysteresis` | 8° | Dead band so noise near a threshold doesn't flip the phase back and forth. To *leave* TOP you must go below top − 8°. To *leave* BOTTOM you must go above 120 + 8 = 128°. |
 | `min_excursion` | 25° | Dips smaller than this are ignored instead of being reported as partial reps. |
+| `ready_s` | 0.75 s | Time standing (knee ≥ 152°) before the first rep can start. Default; not set in the YAML. |
 
-**Partial reps.** If you start going down (below 152°) but stand back up (≥ 160°) without reaching 120°, the rep is not counted. If the lowest knee angle was at least 25° below standing (≤ 135°), it was a real attempt, so it is reported as a `partial` rep with the cue "Go deeper". Smaller dips, such as shifting your weight, are dropped silently.
+**Getting ready.** Nothing counts until you have stood upright, tracked, for 0.75 seconds. Getting up from the phone after tapping Start, or a step while walking into place, isn't a rep. Until then the screen says "Hold still in your start position". The 0.75 s comes from clips recorded at home: false starts came after at most 0.4 s of standing, and people stand at the top for at least 0.5 s between reps. It only applies before the first rep, so fast reps mid-set aren't affected.
 
-**Losing tracking.** If the knee angle can't be measured (for example, a leg leaves the frame) for 1 second, the cue "Step back so your whole body is visible" is shown. After 2 seconds, an in-progress rep is abandoned and the phase resets to TOP.
+**Learning how you stand.** The same straight leg measures about 10° differently from the front and from the side: the Lite model reads it as 156–169° from the front and 166–175° from the side. A fixed top of 160° left some front-view sets less than a degree of margin, so reps merged when someone stood up to 159°. Instead, while you get ready, the engine takes the lower quartile of your knee angle as "standing" and puts the top 10° below it, between 145° and 160°. It uses the lower quartile rather than the median because people often stand extra tall while getting ready and relax between reps. If tracking is lost for 2 seconds, it learns again when you settle.
+
+**Partial reps.** If you start going down (below top − 8°) but stand back up (≥ top) without reaching 120°, the rep is not counted. If the lowest knee angle was at least 25° below how you stand (capped at 160°, so at most 135°), it was a real attempt, so it is reported as a `partial` rep with the cue "Go deeper". Smaller dips, such as shifting your weight, are dropped silently. This depth is measured from your standing angle, not the learned top: from a top of 145°, a 25° dip would already reach 120° and count as a rep, so "Go deeper" would never be said.
+
+**Losing tracking.** If the knee angle can't be measured (for example, a leg leaves the frame) for 1 second, the cue "Step back so your whole body is visible" is shown. After 2 seconds, an in-progress rep is abandoned, the phase resets to TOP, and you have to settle again before the next rep counts.
 
 **Tempo.** Every rep records when it started, when it reached the bottom and when it ended, which gives the **eccentric** time (start to bottom) and **concentric** time (bottom to end).
 
@@ -124,10 +152,11 @@ While a rep is in progress, the engine records the minimum and maximum of every 
 
 A rule with `aggregate: min` or `max` is checked against that metric's extreme over the whole rep.
 
-- **`depth`**: the *lowest* knee angle in the rep must be ≤ 100°.
+- **`depth`**: the *lowest* hip height in the rep must be ≤ 0.58.
 - **`hip_hinge`**: the *lowest* hip angle in the rep must be ≤ 120°. This rule has `no_rep: true`, so when it fires the rep is reported as not counted (like a partial) instead of a counted rep with a fault.
+- **`hips_high`**: the *lowest* hip height in the rep must be ≤ 0.74. Also `no_rep: true`.
 
-Note the gap between the two depth thresholds. Going below **120°** is enough for the rep to *count*. Going below **100°** is needed for it to be *clean*. A rep that bottoms out at 110° counts, but you get "Squat a little deeper". This rewards real effort while still steering you toward parallel (about 90°).
+Note the three levels of hip height. Above **0.74** the hips never really dropped, so it wasn't a squat and doesn't count. Between **0.58 and 0.74** it was a shallow squat: it counts, but you get "Squat a little deeper". Below **0.58** it's deep enough to be *clean*. This rewards real effort while still steering you toward parallel.
 
 ### Live rules: checked on every frame during the rep
 
@@ -140,7 +169,7 @@ Live faults are cued straight away, in the middle of the rep, while you can stil
 
 ## 6. Feedback to the user
 
-Faults turn into cues with a **priority**: depth, partial and hip hinge = 3, torso lean and knee valgus = 2, tracking = 1, good rep = 0. The cue manager ([`feedback.py`](../cleanreps/feedback.py)):
+Faults turn into cues with a **priority**: depth, partial, hip hinge and hips high = 3, torso lean and knee valgus = 2, tracking = 1, good rep = 0. The cue manager ([`feedback.py`](../cleanreps/feedback.py)):
 
 - shows one cue at a time, for 2 seconds
 - lets a higher-priority cue replace a lower-priority one early

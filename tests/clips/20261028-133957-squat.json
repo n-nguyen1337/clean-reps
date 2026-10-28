@@ -1,0 +1,48 @@
+{
+  "exercise": "squat",
+  "person": "p1",
+  "split": "tune",
+  "note": "Side view, phone on the floor. 8 squats; 3.1s, 4.2s and 26.2s were walking to and from the phone.",
+  "reps": [
+    {
+      "bottom_s": 8.6,
+      "counted": true,
+      "faults": []
+    },
+    {
+      "bottom_s": 10.9,
+      "counted": true,
+      "faults": []
+    },
+    {
+      "bottom_s": 13.2,
+      "counted": true,
+      "faults": []
+    },
+    {
+      "bottom_s": 15.3,
+      "counted": true,
+      "faults": []
+    },
+    {
+      "bottom_s": 17.7,
+      "counted": true,
+      "faults": []
+    },
+    {
+      "bottom_s": 19.9,
+      "counted": true,
+      "faults": []
+    },
+    {
+      "bottom_s": 22.2,
+      "counted": true,
+      "faults": []
+    },
+    {
+      "bottom_s": 24.4,
+      "counted": true,
+      "faults": []
+    }
+  ]
+}

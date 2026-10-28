@@ -8,7 +8,7 @@ const rule = (r: Partial<Rule> & Pick<Rule, "id" | "metric" | "cue">): Rule =>
 
 const config: ExerciseConfig = {
   name: "Squat", primaryMetric: "knee_angle", topThreshold: 160, bottomThreshold: 120,
-  hysteresis: 8, minExcursion: 25, partialCue: "Go deeper", cameraHint: "", proportions: {},
+  hysteresis: 8, minExcursion: 25, readyS: 1, topMargin: null, topFloor: null, partialCue: "Go deeper", cameraHint: "", proportions: {},
   rules: [
     rule({ id: "depth", metric: "knee_angle", aggregate: "min", max: 100, cue: "Squat a little deeper" }),
     rule({ id: "torso_lean", metric: "torso_lean", max: 50, cue: "Chest up" }),

@@ -2,7 +2,9 @@
 name: Squat
 camera_hint: Side view for depth and torso lean; front view for knee tracking.
 primary_metric: knee_angle
-top_threshold: 160       # standing tall
+top_threshold: 160       # standing tall; the most a learned top can be
+top_margin: 10           # learned top = how you stand while settling (lower quartile), minus this
+top_floor: 145           # the least a learned top can be
 bottom_threshold: 120    # deep enough to count as a rep
 hysteresis: 8
 min_excursion: 25        # smaller dips are ignored rather than flagged as partial reps
@@ -10,10 +12,18 @@ partial_cue: Go deeper
 
 rules:
   - id: depth
-    metric: knee_angle
+    metric: hip_height    # hips over ankles / leg length: ~0.97 standing, ~0.2-0.5 deep, ~0.65-0.7 shallow
     aggregate: min
-    max: 100              # fault if the lowest knee angle stays above this
+    max: 0.58             # fault if the hips never get lower than this
     cue: Squat a little deeper
+    priority: 3
+
+  - id: hips_high
+    metric: hip_height    # an RDL or a step stays above ~0.78: the hips hinge back but don't drop
+    aggregate: min
+    max: 0.74
+    no_rep: true
+    cue: Bend your knees and sit down
     priority: 3
 
   - id: hip_hinge

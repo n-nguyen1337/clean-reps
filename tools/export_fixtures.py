@@ -7,6 +7,9 @@ through the TS port and must reproduce the same output.
 
     python tools/export_fixtures.py -e squat vids/clip.mp4 [-o web/fixtures]
 
+Cached landmarks (``*.landmarks.json.gz`` from ``tools/import_lab.py``) are
+used as they are, so phone clips become fixtures without re-running the model.
+
 Fixtures contain landmarks only, not video frames.
 """
 
@@ -21,7 +24,8 @@ import numpy as np
 from cleanreps.capture import VideoSource
 from cleanreps.exercises import EXERCISES
 from cleanreps.feedback import CueManager
-from cleanreps.pose import PoseEstimator, PoseFrame, PoseSmoother
+from cleanreps.labels import parse_frames, read_json
+from cleanreps.pose import PoseEstimator, PoseSmoother
 
 DECIMALS = 6
 
@@ -36,7 +40,8 @@ def _rep(r):
             "extremes": {k: list(v) for k, v in r.extremes.items()}}
 
 
-def export(clip: Path, exercise: str, model: str) -> dict:
+def estimate(clip: Path, model: str) -> tuple[list[dict], int, int]:
+    """Raw landmarks for every frame of a video, rounded as stored."""
     raw = []
     with VideoSource(str(clip), mirror=False) as source, PoseEstimator(model) as estimator:
         width = height = None
@@ -52,19 +57,26 @@ def export(clip: Path, exercise: str, model: str) -> dict:
                     "world": np.round(pose.world, DECIMALS).tolist(),
                     "visibility": np.round(pose.visibility, DECIMALS).tolist(),
                 }})
+    return raw, width, height
+
+
+def export(clip: Path, exercise: str, model: str) -> dict:
+    if clip.name.endswith(".landmarks.json.gz"):
+        cached = read_json(clip)
+        raw, width, height = cached["frames"], cached["width"], cached["height"]
+    else:
+        raw, width, height = estimate(clip, model)
 
     # Replay from the rounded landmarks so both sides start from identical input.
     ex, smoother, cues = EXERCISES[exercise](), PoseSmoother(), CueManager()
     frames = []
-    for f in raw:
-        p = f["pose"]
-        pose = None if p is None else PoseFrame(
-            np.array(p["image"]), np.array(p["world"]), np.array(p["visibility"]), f["ts"])
+    for f, (_, pose) in zip(raw, parse_frames(raw)):
         update = ex.update(smoother(pose), f["t"])
         cues.push(update.cues, f["t"])
         active = cues.current(f["t"])
         frames.append({**f, "expected": {
-            "phase": update.phase.value, "reps": update.reps, "tracking": update.tracking,
+            "phase": update.phase.value, "reps": update.reps, "tracking": update.tracking, "ready": update.ready,
+            "top": ex.top, "standing": ex.standing,
             "metrics": {k: _num(v) for k, v in update.metrics.items()},
             "cues": [c.id for c in update.cues],
             "active_cue": active.id if active else None,
@@ -84,7 +96,8 @@ def main(argv=None) -> None:
     args.out.mkdir(parents=True, exist_ok=True)
     for clip in args.clips:
         data = export(clip, args.exercise, args.model)
-        path = args.out / f"{clip.stem}.{args.exercise}.json"
+        stem = clip.name.removesuffix(".landmarks.json.gz") if clip.name.endswith(".gz") else clip.stem
+        path = args.out / f"{stem}.{args.exercise}.json"
         path.write_text(json.dumps(data), encoding="utf-8")
         reps = data["frames"][-1]["expected"]["reps"] if data["frames"] else 0
         print(f"{path}: {len(data['frames'])} frames, {reps} reps")

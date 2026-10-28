@@ -1,0 +1,89 @@
+{
+  "exercise": "squat",
+  "person": "p1",
+  "split": "tune",
+  "note": "Front view. 4 deep squats, 3 shallow squats (should cue depth), then 6 RDLs (hip hinge, hips don't drop) from 24.9s: not squats, so not counted, with \"Bend your knees and sit down\". 32.3s never reached rep depth, so it should be ignored. 36.5s is walking to the phone.",
+  "reps": [
+    {
+      "bottom_s": 7.4,
+      "counted": true,
+      "faults": []
+    },
+    {
+      "bottom_s": 10.2,
+      "counted": true,
+      "faults": []
+    },
+    {
+      "bottom_s": 13.2,
+      "counted": true,
+      "faults": []
+    },
+    {
+      "bottom_s": 15.9,
+      "counted": true,
+      "faults": [
+        "depth"
+      ]
+    },
+    {
+      "bottom_s": 18.3,
+      "counted": true,
+      "faults": [
+        "depth"
+      ]
+    },
+    {
+      "bottom_s": 20.8,
+      "counted": true,
+      "faults": []
+    },
+    {
+      "bottom_s": 23.2,
+      "counted": true,
+      "faults": [
+        "depth"
+      ]
+    },
+    {
+      "bottom_s": 24.9,
+      "counted": false,
+      "faults": [
+        "hips_high"
+      ]
+    },
+    {
+      "bottom_s": 26.5,
+      "counted": false,
+      "faults": [
+        "hips_high"
+      ]
+    },
+    {
+      "bottom_s": 28.3,
+      "counted": false,
+      "faults": [
+        "hips_high"
+      ]
+    },
+    {
+      "bottom_s": 30.1,
+      "counted": false,
+      "faults": [
+        "hips_high"
+      ]
+    },
+    {
+      "bottom_s": 32.3,
+      "counted": false,
+      "faults": []
+    },
+    {
+      "bottom_s": 34.3,
+      "counted": false,
+      "faults": [
+        "hips_high"
+      ]
+    }
+  ]
+}

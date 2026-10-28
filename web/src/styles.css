@@ -83,6 +83,8 @@ button:disabled { opacity: 0.5; cursor: default; }
 .account { display: grid; gap: 10px; line-height: 1.5; }
 .account p { margin: 0; }
 .row.tight { margin-top: 0; }
+.lab-export { flex-basis: 100%; border-top: 1px dashed var(--border); padding-top: var(--space-3); }
+.lab-export p { margin: var(--space-2) 0 0; }
 
 .history { list-style: none; padding: 0; margin: 0; display: grid; gap: 8px; }
 .history button { width: 100%; text-align: left; display: grid; gap: 2px; padding: 12px 14px; }
