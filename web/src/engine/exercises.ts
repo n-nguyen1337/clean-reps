@@ -6,7 +6,7 @@ import { parse } from "yaml";
 import pushupYaml from "../../../cleanreps/rules/pushup.yaml?raw";
 import squatYaml from "../../../cleanreps/rules/squat.yaml?raw";
 import { AVERAGE_BODY, Exercise, forBody, parseConfig, type Body, type Metrics } from "./exercise";
-import { angle, angleFromVertical, lineOffset } from "./geometry";
+import { angle, angleFromVertical, distance, lineOffset } from "./geometry";
 import { LEFT, RIGHT, type PoseFrame } from "./pose";
 
 interface ExerciseDef {
@@ -18,11 +18,18 @@ interface ExerciseDef {
 const DEFS: Record<string, ExerciseDef> = {
   squat: {
     yaml: squatYaml,
-    metrics: ["knee_angle", "hip_angle", "torso_lean", "knee_ratio"],
+    metrics: ["knee_angle", "hip_angle", "torso_lean", "knee_ratio", "hip_height"],
     compute(pose, m) {
       const s = pose.bestSide("hip", "knee", "ankle");
       if (pose.visible(s.hip, s.knee, s.ankle)) m.knee_angle = angle(pose.w(s.hip), pose.w(s.knee), pose.w(s.ankle));
       if (pose.visible(s.shoulder, s.hip, s.knee)) m.hip_angle = angle(pose.w(s.shoulder), pose.w(s.hip), pose.w(s.knee));
+      if (pose.visible(s.hip, s.knee, s.ankle)) {
+        // How high the hips are over the ankles, as a fraction of leg length: about 1 standing,
+        // under 0.5 at parallel. Mostly a vertical distance, which the model gets right from any
+        // side, unlike the knee angle, which needs depth that a front view can't see.
+        const leg = distance(pose.w(s.hip), pose.w(s.knee)) + distance(pose.w(s.knee), pose.w(s.ankle));
+        if (leg > 1e-6) m.hip_height = (pose.w(s.ankle)[1] - pose.w(s.hip)[1]) / leg;
+      }
 
       const view = pose.view();
       if (view === "side" && pose.visible(s.shoulder, s.hip)) {

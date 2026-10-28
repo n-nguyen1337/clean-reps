@@ -75,11 +75,11 @@ describe("labExport", () => {
 // An export replayed through the engine must reproduce the reps seen live, so the
 // Python tools and parity tests can use phone clips as fixtures.
 const DIR = join(__dirname, "../../../fixtures");
-const FIXTURE = existsSync(DIR) ? readdirSync(DIR).find((f) => f.endsWith(".squat.json")) : undefined;
+const FIXTURES = existsSync(DIR) ? readdirSync(DIR).filter((f) => f.endsWith(".squat.json")) : [];
 
-describe.skipIf(!FIXTURE)("export round trip", () => {
-  it("replays to the same reps", () => {
-    const fx = JSON.parse(readFileSync(join(DIR, FIXTURE!), "utf-8"));
+describe.skipIf(!FIXTURES.length)("export round trip", () => {
+  it.each(FIXTURES)("%s replays to the same reps", (name) => {
+    const fx = JSON.parse(readFileSync(join(DIR, name), "utf-8"));
     const run = (frames: { t: number; ts: number; pose: { image: number[][]; world: number[][]; visibility: number[] } | null }[]) => {
       const ex = createExercise("squat");
       const smoother = new PoseSmoother();
@@ -100,6 +100,6 @@ describe.skipIf(!FIXTURE)("export round trip", () => {
     const out = labExport({ exercise: "squat", body: AVERAGE_BODY, reps: live, log, recording: null, videoFile: null });
     const replayed = run(JSON.parse(JSON.stringify(out)).frames);
     expect(replayed.map((r) => [r.counted, r.faults])).toEqual(live.map((r) => [r.counted, r.faults]));
-    expect(live.length).toBeGreaterThan(0);
+    expect(replayed.map((r) => r.bottomS)).toEqual(live.map((r) => r.bottomS));
   });
 });

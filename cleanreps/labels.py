@@ -114,8 +114,8 @@ def match_reps(detected: list[RepResult], labeled: list[LabeledRep], tolerance_s
     return sorted(pairs, key=lambda p: (p[1] or p[0]).bottom_s)
 
 
-def _faults(faults) -> str:
-    return ", ".join(sorted(faults)) or "clean"
+def _faults(faults, empty: str = "clean") -> str:
+    return ", ".join(sorted(faults)) or empty
 
 
 def compare(detected: list[RepResult], labeled: list[LabeledRep]) -> list[str]:
@@ -135,5 +135,6 @@ def compare(detected: list[RepResult], labeled: list[LabeledRep]) -> list[str]:
                 problems.append(f"{lab.bottom_s:.1f}s: {'counted' if rep.counted else 'not counted'}, "
                                 f"expected {'counted' if lab.counted else 'not counted'}")
             if set(rep.faults) != lab.faults:
-                problems.append(f"{lab.bottom_s:.1f}s: faults {_faults(rep.faults)}, expected {_faults(lab.faults)}")
+                problems.append(f"{lab.bottom_s:.1f}s: faults {_faults(rep.faults, 'none')}, "
+                                f"expected {_faults(lab.faults, 'none')}")
     return problems

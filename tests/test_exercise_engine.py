@@ -4,6 +4,7 @@ import numpy as np
 import pytest
 
 from cleanreps.exercises import EXERCISES, Body, Cue, Exercise, ExerciseConfig, Phase, Rule
+from cleanreps.exercises.base import quantile
 from cleanreps.feedback import CueManager
 from cleanreps.session import Session
 
@@ -20,10 +21,10 @@ class FakeExercise(Exercise):
         return pose
 
 
-def make_exercise(*rules: Rule) -> FakeExercise:
+def make_exercise(*rules: Rule, ready_s: float = 0, **options) -> FakeExercise:
     cfg = ExerciseConfig(
         name="Fake", primary_metric="angle", top_threshold=160, bottom_threshold=110,
-        hysteresis=8, min_excursion=25, partial_cue="Go deeper", rules=rules,
+        hysteresis=8, min_excursion=25, ready_s=ready_s, partial_cue="Go deeper", rules=rules, **options,
     )
     return FakeExercise(cfg)
 
@@ -98,6 +99,24 @@ def test_no_rep_rule_stops_rep_counting():
     assert [c.id for u in updates[:60] for c in u.cues] == ["hinge"]
 
 
+def test_blocked_rep_reports_only_why_it_did_not_count():
+    depth = Rule(id="depth", metric="angle", aggregate="min", max=100, cue="Deeper", priority=3)
+    hinge = Rule(id="hinge", metric="lean", aggregate="max", max=100, no_rep=True, cue="Hips back", priority=3)
+    ex = make_exercise(depth, hinge)
+    updates = run(ex, rep_curve(105), np.full(60, 150.0))  # shallow, and not the exercise
+    (rep,) = completed(updates)
+    assert not rep.counted and rep.faults == ["hinge"]
+    assert [c.id for u in updates for c in u.cues] == ["hinge"]
+
+
+def test_partial_that_is_not_the_exercise_is_dropped():
+    hinge = Rule(id="hinge", metric="lean", aggregate="max", max=100, no_rep=True, cue="Hips back", priority=3)
+    ex = make_exercise(hinge)
+    updates = run(ex, rep_curve(125), np.full(60, 150.0))  # like walking up to the camera
+    assert completed(updates) == []
+    assert not any(u.cues for u in updates)
+
+
 def test_live_rule_needs_consecutive_frames_and_cues_once():
     lean = Rule(id="lean", metric="lean", max=45, cue="Chest up", min_frames=3)
     ex = make_exercise(lean)
@@ -137,6 +156,83 @@ def test_lost_tracking_cues_then_aborts_rep():
     assert ex.phase is Phase.TOP
 
 
+def test_waits_for_the_user_to_settle_at_the_top():
+    ex = make_exercise(ready_s=1.0)
+    getting_up = np.linspace(60, 175, 30)  # rising from a crouch at the camera
+    brief = np.full(9, 175.0)  # with the end of getting up, under 1 s at the top
+    updates = run(ex, np.concatenate([getting_up, brief, rep_curve(90)]))
+    assert completed(updates) == []
+    assert not any(u.cues for u in updates)
+    assert not updates[-1].ready
+
+    updates = run(ex, np.concatenate([np.full(30, 175.0), rep_curve(90)]), start_t=99 / FPS)
+    assert updates[-1].ready
+    (rep,) = completed(updates)
+    assert rep.counted and rep.index == 1
+
+
+def test_settles_again_after_losing_tracking():
+    ex = make_exercise(ready_s=1.0)
+    run(ex, np.full(40, 175.0))
+    assert ex.ready
+    gone = [ex.update(None, (40 + i) / FPS) for i in range(90)]
+    assert not gone[-1].ready
+    assert completed(run(ex, rep_curve(90), start_t=130 / FPS)) == []
+
+
+def test_learns_the_top_from_how_the_user_stands():
+    ex = make_exercise(ready_s=1.0, top_margin=10, top_floor=130)
+    run(ex, np.full(31, 156.0))  # stands at 156 while settling
+    assert ex.ready and ex.standing == 156 and ex.top == 146
+    # Each rep only comes back up to 155: under the configured 160, over the learned 146.
+    reps = completed(run(ex, np.concatenate([rep_curve(90, high=155)] * 3), start_t=31 / FPS))
+    assert [r.counted for r in reps] == [True] * 3
+
+
+def test_partial_reps_measure_depth_from_standing():
+    ex = make_exercise(ready_s=1.0, top_margin=10, top_floor=130)
+    run(ex, np.full(31, 160.0))
+    assert ex.top == 150
+    # 28 below standing is a real attempt, though only 18 below the learned top.
+    (rep,) = completed(run(ex, rep_curve(132, high=160), start_t=31 / FPS))
+    assert not rep.counted and rep.faults == ["partial"]
+
+
+def test_quantile_matches_numpy():
+    values = [3.0, 1.0, 4.0, 1.5, 9.0, 2.6]
+    for q in (0, 0.25, 0.5, 0.9, 1):
+        assert quantile(values, q) == pytest.approx(float(np.quantile(values, q)))
+
+
+def test_learned_top_stays_within_its_limits():
+    tall = make_exercise(ready_s=1.0, top_margin=10, top_floor=145)
+    run(tall, np.full(31, 178.0))
+    assert tall.top == 160  # never stricter than configured
+    bent = make_exercise(ready_s=1.0, top_margin=10, top_floor=145)
+    run(bent, np.full(31, 153.0))
+    assert bent.top == 145
+
+
+def test_relearns_the_top_after_losing_tracking():
+    ex = make_exercise(ready_s=1.0, top_margin=10, top_floor=130)
+    run(ex, np.full(31, 170.0))
+    assert ex.top == 160
+    for i in range(90):
+        ex.update(None, (31 + i) / FPS)
+    assert not ex.ready and ex.standing is None
+    run(ex, np.full(31, 156.0), start_t=121 / FPS)
+    assert ex.top == 146
+
+
+def test_top_margin_needs_a_sensible_floor(tmp_path):
+    base = "name: X\nprimary_metric: a\ntop_threshold: 160\nbottom_threshold: 120\ntop_margin: 10\n"
+    for extra in ("", "top_floor: 125\n", "top_floor: 165\n"):
+        path = tmp_path / "x.yaml"
+        path.write_text(base + extra)
+        with pytest.raises(ValueError, match="top_floor"):
+            ExerciseConfig.from_yaml(path)
+
+
 def test_unknown_metric_in_config_rejected():
     with pytest.raises(ValueError):
         make_exercise(Rule(id="x", metric="nope", cue="x", max=1))
@@ -150,7 +246,7 @@ def test_bundled_configs_load(key):
 
 def lean_limit(body: Body | None) -> float:
     rules = {r.id: r for r in EXERCISES["squat"](body=body).config.rules}
-    assert rules["depth"].max == 100  # proportions only move the rules they name
+    assert rules["depth"].max == 0.58  # proportions only move the rules they name
     return rules["torso_lean"].max
 
 

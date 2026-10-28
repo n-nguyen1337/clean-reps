@@ -20,7 +20,7 @@ interface Fixture {
     ts: number;
     pose: { image: number[][]; world: number[][]; visibility: number[] } | null;
     expected: {
-      phase: string; reps: number; tracking: boolean;
+      phase: string; reps: number; tracking: boolean; ready: boolean; top: number; standing: number | null;
       metrics: Record<string, number | null>;
       cues: string[]; active_cue: string | null;
       completed: { counted: boolean; index: number | null; start_s: number; bottom_s: number;
@@ -46,8 +46,9 @@ describe.skipIf(!FIXTURES.length)("parity with Python", () => {
       const e = f.expected;
       const at = `frame ${i}`;
 
-      expect({ phase: u.phase, reps: u.reps, tracking: u.tracking }, at)
-        .toEqual({ phase: e.phase, reps: e.reps, tracking: e.tracking });
+      expect({ phase: u.phase, reps: u.reps, tracking: u.tracking, ready: u.ready }, at)
+        .toEqual({ phase: e.phase, reps: e.reps, tracking: e.tracking, ready: e.ready });
+      expect(close(ex.top, e.top) && close(ex.standing, e.standing), `${at} top ${ex.top} vs ${e.top}`).toBe(true);
       for (const [k, v] of Object.entries(e.metrics)) {
         expect(close(u.metrics[k] ?? null, v), `${at} ${k}: ${u.metrics[k]} vs ${v}`).toBe(true);
       }

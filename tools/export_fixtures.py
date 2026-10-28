@@ -75,7 +75,8 @@ def export(clip: Path, exercise: str, model: str) -> dict:
         cues.push(update.cues, f["t"])
         active = cues.current(f["t"])
         frames.append({**f, "expected": {
-            "phase": update.phase.value, "reps": update.reps, "tracking": update.tracking,
+            "phase": update.phase.value, "reps": update.reps, "tracking": update.tracking, "ready": update.ready,
+            "top": ex.top, "standing": ex.standing,
             "metrics": {k: _num(v) for k, v in update.metrics.items()},
             "cues": [c.id for c in update.cues],
             "active_cue": active.id if active else None,

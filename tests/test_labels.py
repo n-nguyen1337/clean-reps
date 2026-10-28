@@ -48,9 +48,9 @@ class TestMatching:
             [lab(3.0), lab(6.0), lab(9.0)],
         )
         assert problems == [
-            "3.0s: faults depth, expected clean",
+            "3.0s: faults depth, expected none",
             "6.0s: not counted, expected counted",
-            "6.0s: faults partial, expected clean",
+            "6.0s: faults partial, expected none",
             "9.0s: missed rep (expected counted, clean)",
             "12.0s: unexpected counted rep (clean)",
         ]
@@ -124,7 +124,7 @@ class TestImportLab:
 
     @pytest.mark.skipif(not FIXTURES, reason="no local parity fixtures in web/fixtures")
     def test_real_landmarks_agree_with_engine(self, tmp_path: Path):
-        fx = read_json(FIXTURES[0])
+        fx = max(map(read_json, FIXTURES), key=lambda fx: fx["frames"][-1]["expected"]["reps"])
         frames = [{k: f[k] for k in ("t", "ts", "pose")} for f in fx["frames"]]
         engine = [f["expected"]["completed"] for f in fx["frames"] if f["expected"]["completed"]]
         export = tmp_path / "c.lab.json"

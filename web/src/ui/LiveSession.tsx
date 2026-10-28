@@ -245,7 +245,9 @@ export function LiveSession({ exercise, body, model, speaker, recordVideo, lab, 
           </div>
         </div>
       )}
-      {status.kind === "running" && update?.reps === 0 && !lastRep && (
+      {status.kind === "running" && update?.tracking && !update.ready ? (
+        <p className="hint floating"><b>Hold still in your start position</b><br />{config.cameraHint}</p>
+      ) : status.kind === "running" && update?.reps === 0 && !lastRep && (
         <p className="hint floating">{config.cameraHint}</p>
       )}
 

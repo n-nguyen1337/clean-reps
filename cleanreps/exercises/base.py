@@ -16,6 +16,23 @@ its metric falls outside ``[min, max]``:
 
 A rule with ``no_rep: true`` also stops the rep from counting when it fires,
 for movements that aren't the exercise at all (a squat with no hip bend).
+Such a rep reports only the ``no_rep`` faults: "squat deeper" means nothing
+to someone who wasn't squatting. A dip that never reached the bottom and that
+a ``no_rep`` rule would block isn't reported at all, so walking up to the
+camera isn't a partial rep.
+
+Nothing counts until the user has held the top position, tracked, for
+``ready_s``: getting up from the camera or walking into place isn't a rep.
+Losing tracking for ``LOST_ABORT_AFTER_S`` makes them settle again.
+
+With ``top_margin`` set, the top threshold is learned from how the user
+stands while settling: the lower quartile of their primary metric minus the
+margin, kept between ``top_floor`` and ``top_threshold``. The same straight
+leg can measure 10 degrees apart between a front and a side view, so a fixed
+top is either too strict for one or too loose for the other. The lower
+quartile, not the median, because people often stand extra tall while
+settling and relax between reps. Partial reps still measure their depth from
+standing (at most ``top_threshold``), not from the lower learned top.
 
 An optional ``proportions`` section shifts rule limits for the user's body
 proportions (see ``Body``).
@@ -34,10 +51,20 @@ import yaml
 from ..pose import PoseFrame
 
 RULES_DIR = Path(__file__).resolve().parent.parent / "rules"
+STANDING_QUANTILE = 0.25
 LOST_CUE_AFTER_S = 1.0
 LOST_ABORT_AFTER_S = 2.0
 BODY_SEGMENTS = ("femur", "torso")
 BODY_SIZES = ("short", "average", "long")
+
+
+def quantile(values: list[float], q: float) -> float:
+    """Linear interpolation between closest ranks, as numpy's default."""
+    s = sorted(values)
+    pos = q * (len(s) - 1)
+    lo = math.floor(pos)
+    hi = min(lo + 1, len(s) - 1)
+    return s[lo] + (s[hi] - s[lo]) * (pos - lo)
 
 
 class Phase(str, Enum):
@@ -88,6 +115,9 @@ class ExerciseConfig:
     bottom_threshold: float
     hysteresis: float = 8.0
     min_excursion: float = 25.0
+    ready_s: float = 0.75  # time at the top, tracked, before the first rep can start
+    top_margin: float | None = None  # learn the top as (standing - margin) while settling
+    top_floor: float | None = None  # the lowest a learned top can go
     partial_cue: str | None = None
     camera_hint: str = ""
     rules: tuple[Rule, ...] = ()
@@ -104,6 +134,11 @@ class ExerciseConfig:
         cfg = cls(rules=rules, **data)
         if cfg.bottom_threshold >= cfg.top_threshold:
             raise ValueError("bottom_threshold must be below top_threshold")
+        if cfg.top_margin is not None and (
+            cfg.top_floor is None or not cfg.bottom_threshold < cfg.top_floor - cfg.hysteresis
+            or cfg.top_floor > cfg.top_threshold
+        ):
+            raise ValueError("top_margin needs a top_floor between bottom_threshold + hysteresis and top_threshold")
         rule_ids = {r.id for r in rules}
         for segment, sizes in cfg.proportions.items():
             if segment not in BODY_SEGMENTS:
@@ -170,6 +205,7 @@ class ExerciseUpdate:
     tracking: bool
     cues: list[Cue] = field(default_factory=list)
     completed: RepResult | None = None
+    ready: bool = True  # False until the user has settled at the top
 
 
 class _RepTracker:
@@ -232,6 +268,21 @@ class Exercise(ABC):
         self.reps = 0
         self._rep: _RepTracker | None = None
         self._last_seen: float | None = None
+        self._unsettle()
+
+    def _unsettle(self) -> None:
+        self.ready = False
+        self._settling: list[float] = []  # primary metric while settling
+        self._settling_since: float | None = None
+        self.top = self.config.top_threshold  # this set's top, learned once settled
+        self.standing: float | None = None
+
+    def _settle(self) -> None:
+        self.ready = True
+        cfg = self.config
+        if cfg.top_margin is not None:
+            self.standing = quantile(self._settling, STANDING_QUANTILE)
+            self.top = min(cfg.top_threshold, max(cfg.top_floor, self.standing - cfg.top_margin))
 
     def update(self, pose: PoseFrame | None, t: float) -> ExerciseUpdate:
         metrics = self.compute_metrics(pose) if pose is not None else {}
@@ -241,20 +292,32 @@ class Exercise(ABC):
             return self._lost(metrics, t)
         self._last_seen = t
 
+        cfg = self.config
+        if not self.ready:
+            if value < cfg.top_threshold - cfg.hysteresis:
+                self._settling_since, self._settling = None, []
+            else:
+                if self._settling_since is None:
+                    self._settling_since = t
+                self._settling.append(float(value))
+            if self._settling_since is None or t - self._settling_since < cfg.ready_s:
+                return ExerciseUpdate(self.phase, self.reps, metrics, True, ready=False)
+            self._settle()
+
         cues: list[Cue] = []
         if self._rep is not None:
             cues += self._rep.observe(metrics, t, self._live_rules)
 
-        cfg, completed = self.config, None
+        completed = None
         if self.phase is Phase.TOP:
-            if value < cfg.top_threshold - cfg.hysteresis:
+            if value < self.top - cfg.hysteresis:
                 self.phase = Phase.DESCENDING
                 self._rep = _RepTracker(t, cfg.primary_metric)
                 cues += self._rep.observe(metrics, t, self._live_rules)
         elif self.phase is Phase.DESCENDING:
             if value <= cfg.bottom_threshold:
                 self.phase = Phase.BOTTOM
-            elif value >= cfg.top_threshold:
+            elif value >= self.top:
                 completed = self._abort(t)
                 if completed is not None and cfg.partial_cue:
                     cues.append(Cue("partial", cfg.partial_cue, 3))
@@ -264,7 +327,7 @@ class Exercise(ABC):
         elif self.phase is Phase.ASCENDING:
             if value <= cfg.bottom_threshold:
                 self.phase = Phase.BOTTOM
-            elif value >= cfg.top_threshold:
+            elif value >= self.top:
                 completed, rep_cues = self._complete(t)
                 cues += rep_cues
 
@@ -275,27 +338,42 @@ class Exercise(ABC):
         lost_for = t - self._last_seen if self._last_seen is not None else math.inf
         if lost_for >= LOST_CUE_AFTER_S:
             cues.append(Cue("tracking", "Step back so your whole body is visible", 1))
-        if lost_for >= LOST_ABORT_AFTER_S and self._rep is not None:
+        self._settling_since, self._settling = None, []  # settling needs unbroken tracking
+        if lost_for >= LOST_ABORT_AFTER_S and self.ready:
             self.phase, self._rep = Phase.TOP, None
-        return ExerciseUpdate(self.phase, self.reps, metrics, False, cues)
+            self._unsettle()  # whoever comes back may stand differently
+        return ExerciseUpdate(self.phase, self.reps, metrics, False, cues, ready=self.ready)
 
-    def _complete(self, t: float) -> tuple[RepResult, list[Cue]]:
-        rep, self._rep = self._rep, None
-        self.phase = Phase.TOP
-
-        cues = []
+    def _broken(self, rep: _RepTracker) -> list[Rule]:
+        """Rep rules the rep breaks, judged on each metric's extreme over the rep."""
+        broken = []
         for rule in self._rep_rules:
             extreme = rep.extremes.get(rule.metric)
             if extreme is None:
                 continue
             value = extreme[0] if rule.aggregate == "min" else extreme[1]
             if rule.violated(value) and rule.id not in rep.faults:
-                rep.faults.append(rule.id)
-                cues.append(Cue(rule.id, rule.cue, rule.priority))
+                broken.append(rule)
+        return broken
 
-        if any(r.no_rep and r.id in rep.faults for r in self.config.rules):
-            return RepResult(False, None, rep.start_s, rep.bottom_s, t, rep.faults, rep.extremes), cues
+    def _blocking(self, rep: _RepTracker, broken: list[Rule]) -> list[Rule]:
+        """The no_rep rules that fired: the movement wasn't the exercise."""
+        return [r for r in self.config.rules if r.no_rep and (r in broken or r.id in rep.faults)]
 
+    def _complete(self, t: float) -> tuple[RepResult, list[Cue]]:
+        rep, self._rep = self._rep, None
+        self.phase = Phase.TOP
+
+        broken = self._broken(rep)
+        blocking = self._blocking(rep, broken)
+        if blocking:
+            # Not the exercise at all: say only why, not how to do it better.
+            cues = [Cue(r.id, r.cue, r.priority) for r in blocking if r in broken]
+            faults = [r.id for r in blocking]
+            return RepResult(False, None, rep.start_s, rep.bottom_s, t, faults, rep.extremes), cues
+
+        rep.faults += [r.id for r in broken]
+        cues = [Cue(r.id, r.cue, r.priority) for r in broken]
         self.reps += 1
         result = RepResult(True, self.reps, rep.start_s, rep.bottom_s, t, rep.faults, rep.extremes)
         if result.clean:
@@ -308,6 +386,9 @@ class Exercise(ABC):
         rep, self._rep = self._rep, None
         self.phase = Phase.TOP
         lowest = rep.extremes.get(self.config.primary_metric, (math.inf, math.inf))[0]
-        if self.config.top_threshold - lowest < self.config.min_excursion:
+        standing = self.top if self.standing is None else min(self.standing, self.config.top_threshold)
+        if standing - lowest < self.config.min_excursion:
             return None
+        if self._blocking(rep, self._broken(rep)):
+            return None  # not an attempt at the exercise, such as walking up to the camera
         return RepResult(False, None, rep.start_s, rep.bottom_s, t, ["partial"], rep.extremes)

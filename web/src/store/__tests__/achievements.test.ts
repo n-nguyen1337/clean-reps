@@ -8,7 +8,7 @@ import { toSetRecord, type SetRecord } from "../record";
 
 const config: ExerciseConfig = {
   name: "Squat", primaryMetric: "knee_angle", topThreshold: 160, bottomThreshold: 120,
-  hysteresis: 8, minExcursion: 25, partialCue: "Go deeper", cameraHint: "", proportions: {},
+  hysteresis: 8, minExcursion: 25, readyS: 1, topMargin: null, topFloor: null, partialCue: "Go deeper", cameraHint: "", proportions: {},
   rules: [
     { id: "depth", metric: "knee_angle", aggregate: "min", max: 100, min: null, cue: "Squat a little deeper", priority: 3, minFrames: 3, noRep: false },
     { id: "torso_lean", metric: "torso_lean", aggregate: "max", max: 50, min: null, cue: "Chest up", priority: 2, minFrames: 3, noRep: false },

@@ -6,6 +6,14 @@ export type Vec = ArrayLike<number>;
 const norm = (x: number, y: number, z = 0) => Math.sqrt(x * x + y * y + z * z);
 const rad2deg = (r: number) => (r * 180) / Math.PI;
 
+/** Euclidean distance; 3D when both points have a z. */
+export function distance(a: Vec, b: Vec): number {
+  const dims = Math.min(a.length, b.length);
+  let sum = 0;
+  for (let i = 0; i < dims; i++) sum += (a[i] - b[i]) ** 2;
+  return Math.sqrt(sum);
+}
+
 /** Angle ABC at vertex b in degrees (0-180). Uses 3D when all points have a z. */
 export function angle(a: Vec, b: Vec, c: Vec): number {
   const dims = Math.min(a.length, b.length, c.length);
