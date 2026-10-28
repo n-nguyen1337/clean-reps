@@ -251,6 +251,18 @@ button:disabled { opacity: 0.5; cursor: default; }
 
 .overlay-msg { position: absolute; inset: 0; display: grid; place-content: center; text-align: center; padding: 16px; background: rgba(0, 0, 0, 0.6); }
 .hint { color: var(--muted); }
+.hud-bottom[hidden] { display: none; }
+
+/* Sheets: the first-visit disclaimer (a modal dialog) and the live session's camera messages. */
+.sheet { width: min(440px, calc(100vw - 32px)); max-height: calc(100dvh - 32px); overflow-y: auto; text-align: left;
+  background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 16px; padding: var(--space-5); }
+dialog.sheet { margin: auto; }
+dialog.sheet::backdrop { background: rgba(5, 6, 16, 0.75); backdrop-filter: blur(4px); }
+.sheet h2 { margin: 0 0 var(--space-3); font-size: 1.3rem; }
+.sheet .big { margin-top: var(--space-5); }
+.sheet-list { margin: var(--space-4) 0 0; padding-left: 20px; display: grid; gap: var(--space-2); line-height: 1.45; }
+.sheet-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: var(--space-5); }
+
 .hint.floating { position: absolute; top: 120px; left: 16px; right: 16px; text-align: center; background: rgba(0, 0, 0, 0.55); border-radius: 10px; padding: 10px; margin: 0; }
 
 /* App shell: tab bar and page frame. Phones first; the tab bar moves to the top from 768px. */

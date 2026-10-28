@@ -7,6 +7,8 @@ import { Session, type SessionRecord } from "../engine/session";
 import { PoseTrack, RECORD_CAP_S, type Playback } from "../playback/playback";
 import { SetRecorder } from "../playback/recorder";
 import { createLandmarker, toPoseFrame, type ModelVariant } from "../pose/landmarker";
+import { cameraPermission, describeStartError, rememberCamera, type CameraError } from "../store/consent";
+import { CameraExplainer } from "./Disclaimer";
 import { drawPose } from "./overlay";
 
 interface Props {
@@ -17,6 +19,8 @@ interface Props {
   /** Record the set for replay on the summary screen. */
   recordVideo: boolean;
   onDone: (record: SessionRecord, playback: Playback | null) => void;
+  /** Leave before the set started: the camera explainer's "Not now", or Back after an error. */
+  onCancel: () => void;
   /** Set when the user leaves with the back button: end the set as if Finish was tapped. */
   finishNow?: boolean;
 }
@@ -28,9 +32,9 @@ interface Hud {
   fps: number;
 }
 
-type Status = { kind: "loading" } | { kind: "running" } | { kind: "error"; message: string };
+type Status = { kind: "loading" } | { kind: "running" } | { kind: "error"; error: CameraError };
 
-export function LiveSession({ exercise, body, model, speaker, recordVideo, onDone, finishNow }: Props) {
+export function LiveSession({ exercise, body, model, speaker, recordVideo, onDone, onCancel, finishNow }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const sessionRef = useRef(new Session(exercise));
@@ -41,8 +45,19 @@ export function LiveSession({ exercise, body, model, speaker, recordVideo, onDon
   const [hud, setHud] = useState<Hud>({ update: null, cue: null, lastRep: null, fps: 0 });
   const [showMetrics, setShowMetrics] = useState(false);
   const config = useRef(createExercise(exercise, body).config).current;
+  // "check" until we know whether the browser will prompt; "ask" shows the explainer first.
+  const [camera, setCamera] = useState<"check" | "ask" | "go">("check");
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
+    let live = true;
+    // When access is denied, start anyway: getUserMedia fails at once and the error says how to fix it.
+    cameraPermission().then((p) => live && setCamera(p === "ask" ? "ask" : "go"));
+    return () => { live = false; };
+  }, []);
+
+  useEffect(() => {
+    if (camera !== "go") return;
     let cancelled = false;
     let stream: MediaStream | null = null;
     let wakeLock: WakeLockSentinel | null = null;
@@ -60,6 +75,8 @@ export function LiveSession({ exercise, body, model, speaker, recordVideo, onDon
 
     (async () => {
       try {
+        // mediaDevices is missing outside a secure context (plain http on a LAN address).
+        if (!navigator.mediaDevices) throw new DOMException("Camera needs HTTPS", "SecurityError");
         [stream, landmarker] = await Promise.all([
           navigator.mediaDevices.getUserMedia({
             video: { facingMode: "user", width: { ideal: 1280 }, height: { ideal: 720 } },
@@ -68,9 +85,10 @@ export function LiveSession({ exercise, body, model, speaker, recordVideo, onDon
           createLandmarker(model),
         ]);
       } catch (err) {
-        if (!cancelled) setStatus({ kind: "error", message: err instanceof Error ? err.message : String(err) });
+        if (!cancelled) setStatus({ kind: "error", error: describeStartError(err) });
         return;
       }
+      rememberCamera();
       if (cancelled) {
         stream.getTracks().forEach((t) => t.stop());
         landmarker.close();
@@ -138,7 +156,7 @@ export function LiveSession({ exercise, body, model, speaker, recordVideo, onDon
       landmarker?.close();
       speechSynthesis?.cancel();
     };
-  }, [exercise, body, model, speaker, recordVideo]);
+  }, [exercise, body, model, speaker, recordVideo, camera, attempt]);
 
   const finish = async () => {
     setFinishing(true);
@@ -166,6 +184,14 @@ export function LiveSession({ exercise, body, model, speaker, recordVideo, onDon
         : { text: `No rep: ${lastRep.faults.join(", ")}`, tone: "bad" };
   }
 
+  if (camera === "ask") {
+    return (
+      <div className="live">
+        <CameraExplainer hint={config.cameraHint} onContinue={() => setCamera("go")} onCancel={onCancel} />
+      </div>
+    );
+  }
+
   return (
     <div className="live">
       <div className="stage">
@@ -184,16 +210,26 @@ export function LiveSession({ exercise, body, model, speaker, recordVideo, onDon
         </div>
       </div>
 
-      {status.kind === "loading" && (
+      {status.kind === "loading" && camera === "go" && (
         <div className="overlay-msg">
           <p>Starting camera and loading the pose model…</p>
-          <p className="hint">{config.cameraHint}</p>
-        </div>
+          <p className="hint">{config.cameraHint}</p>        </div>
       )}
       {status.kind === "error" && (
         <div className="overlay-msg">
-          <p>Couldn't start: {status.message}</p>
-          <p className="hint">Allow camera access, then try again.</p>
+          <div className="sheet" role="alert">
+            <h2>{status.error.title}</h2>
+            <p className="lede">{status.error.help}</p>
+            <div className="sheet-actions">
+              <button className="ghost" onClick={onCancel}>Back</button>
+              {status.error.retry && (
+                <button className="primary" onClick={() => {
+                  setStatus({ kind: "loading" });
+                  setAttempt((a) => a + 1);
+                }}>Try again</button>
+              )}
+            </div>
+          </div>
         </div>
       )}
       {status.kind === "running" && update?.reps === 0 && !lastRep && (
@@ -202,7 +238,7 @@ export function LiveSession({ exercise, body, model, speaker, recordVideo, onDon
 
       {cue && <div className={`cue ${cue.id === "good_rep" ? "good" : "warn"}`}>{cue.text}</div>}
 
-      <div className="hud-bottom">
+      <div className="hud-bottom" hidden={status.kind === "error" /* the error has its own Back */}>
         {verdict && <span className={`pill ${verdict.tone}`}>{verdict.text}</span>}
         {showMetrics && update && (
           <span className="metrics">
