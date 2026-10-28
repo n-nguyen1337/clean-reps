@@ -12,6 +12,9 @@ recordings/
 
 # Test clips can be large; commit them deliberately (or use Git LFS)
 tests/clips/*.mp4
+tests/clips/*.webm
+# Lab exports straight from the phone; import them with tools/import_lab.py
+*.lab.json
 
 # Supabase CLI state written by `supabase link` (project ref, versions)
 supabase/.temp/

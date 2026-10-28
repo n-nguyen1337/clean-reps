@@ -4,7 +4,8 @@ import { createExercise } from "../engine/exercises";
 import { CueManager, type Speaker } from "../engine/feedback";
 import { PoseSmoother } from "../engine/pose";
 import { Session, type SessionRecord } from "../engine/session";
-import { PoseTrack, RECORD_CAP_S, type Playback } from "../playback/playback";
+import { LandmarkLog } from "../playback/lab";
+import { PoseTrack, RECORD_CAP_S, type Playback, type Recording } from "../playback/playback";
 import { SetRecorder } from "../playback/recorder";
 import { createLandmarker, toPoseFrame, type ModelVariant } from "../pose/landmarker";
 import { cameraPermission, describeStartError, rememberCamera, type CameraError } from "../store/consent";
@@ -18,7 +19,9 @@ interface Props {
   speaker: Speaker;
   /** Record the set for replay on the summary screen. */
   recordVideo: boolean;
-  onDone: (record: SessionRecord, playback: Playback | null) => void;
+  /** Lab mode: keep the raw landmarks so the summary can export them. */
+  lab?: boolean;
+  onDone: (record: SessionRecord, playback: Playback | null, lab: LabCapture | null) => void;
   /** Leave before the set started: the camera explainer's "Not now", or Back after an error. */
   onCancel: () => void;
   /** Set when the user leaves with the back button: end the set as if Finish was tapped. */
@@ -32,14 +35,21 @@ interface Hud {
   fps: number;
 }
 
+/** What a lab-mode set hands the summary for export. The recording is kept even when replay is unusable. */
+export interface LabCapture {
+  log: LandmarkLog;
+  recording: Recording | null;
+}
+
 type Status = { kind: "loading" } | { kind: "running" } | { kind: "error"; error: CameraError };
 
-export function LiveSession({ exercise, body, model, speaker, recordVideo, onDone, onCancel, finishNow }: Props) {
+export function LiveSession({ exercise, body, model, speaker, recordVideo, lab, onDone, onCancel, finishNow }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const sessionRef = useRef(new Session(exercise));
   const recorderRef = useRef<SetRecorder | null>(null);
   const posesRef = useRef(new PoseTrack());
+  const labRef = useRef(lab ? new LandmarkLog(model, RECORD_CAP_S) : null);
   const [status, setStatus] = useState<Status>({ kind: "loading" });
   const [finishing, setFinishing] = useState(false);
   const [hud, setHud] = useState<Hud>({ update: null, cue: null, lastRep: null, fps: 0 });
@@ -120,7 +130,9 @@ export function LiveSession({ exercise, body, model, speaker, recordVideo, onDon
         const { videoWidth: w, videoHeight: h } = video;
         if (ctx.canvas.width !== w || ctx.canvas.height !== h) Object.assign(ctx.canvas, { width: w, height: h });
 
-        const pose = smoother.apply(toPoseFrame(landmarker.detectForVideo(video, ts), w, h, ts));
+        const raw = toPoseFrame(landmarker.detectForVideo(video, ts), w, h, ts);
+        labRef.current?.push(t, ts, raw, w, h);
+        const pose = smoother.apply(raw);
         const update = ex.update(pose, t);
         sessionRef.current.sample(t, update.metrics);
         if (update.completed) {
@@ -167,7 +179,8 @@ export function LiveSession({ exercise, body, model, speaker, recordVideo, onDon
     const video = videoRef.current;
     onDone(record, recording && video
       ? { ...recording, width: video.videoWidth, height: video.videoHeight, poses: posesRef.current }
-      : null);
+      : null,
+      labRef.current && { log: labRef.current, recording });
   };
 
   useEffect(() => {
