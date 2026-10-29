@@ -1,5 +1,5 @@
 -- Row-level security: user A can't read, write or overwrite user B's rows, and
--- anon and signed-in users can't touch the coach rate limit.
+-- anon and signed-in users can't touch the coach rate limit or feedback.
 -- Everything runs in one transaction and is rolled back, so it's safe on the
 -- live project:  node supabase/tests/run-linked.mjs  (or `supabase test db` with Docker)
 begin;
@@ -8,7 +8,7 @@ create extension if not exists pgtap with schema extensions;
 -- returns the last result set. pg_prove reads it just the same.
 create temp table tap (at timestamptz default clock_timestamp(), line text) on commit drop;
 grant insert, select on tap to anon, authenticated;
-insert into tap (line) select plan(17);
+insert into tap (line) select plan(21);
 
 -- Two users, each with one set (inserted as the owner, bypassing RLS) ------
 
@@ -35,6 +35,12 @@ insert into tap (line) select throws_ok(
     values (gen_random_uuid(), 'bbbbbbbb-0000-4000-8000-000000000002', 1, 'squat', now(), 1, 1, 0,
       '{}', '{}', '[]', 'rls-test')$$,
   '42501', null, 'anon cannot insert sets');
+
+-- Feedback: service role only, for anon and signed-in users alike.
+insert into tap (line) select is((select count(*) from public.feedback), 0::bigint, 'anon sees no feedback');
+insert into tap (line) select throws_ok(
+  $$select public.submit_feedback('x', null, '{"source":"summary","ease":5,"app_version":"rls-test"}', 1000, 1000)$$,
+  '42501', null, 'anon cannot call submit_feedback directly');
 
 -- User A -------------------------------------------------------------------
 
@@ -96,6 +102,10 @@ insert into tap (line) select throws_ok(
 insert into tap (line) select throws_ok(
   $$select public.claim_coach_request('aaaaaaaa-0000-4000-8000-000000000001', 1000, 1000)$$,
   '42501', null, 'A cannot claim coach requests directly');
+insert into tap (line) select is((select count(*) from public.feedback), 0::bigint, 'A sees no feedback');
+insert into tap (line) select throws_ok(
+  $$insert into public.feedback (source, one_change, app_version, ip_hash) values ('summary', 'hi', 'rls-test', 'x')$$,
+  '42501', null, 'A cannot write feedback');
 
 -- User B: their set is untouched -------------------------------------------
 
