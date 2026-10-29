@@ -174,7 +174,7 @@ export function App() {
   }
 
   return (
-    <Shell route={route}>
+    <Shell route={route} startLabel={`Start ${configs[exercise].name.toLowerCase()}`} onStart={start}>
       {page}
       {!accepted && <Disclaimer onAccept={() => { acceptDisclaimer(); setAccepted(true); }} />}
       {feedback && <FeedbackSheet source={feedback.source} set={feedback.set} model={settings.model} onClose={(outcome) => {

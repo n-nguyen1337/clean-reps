@@ -6,6 +6,7 @@ import { bestSet, setPoints, weeklyTotals, weekStreak } from "../store/progress"
 import type { SetRecord } from "../store/record";
 import { AchievementTeaser, LevelCard } from "./Achievements";
 import { shortDate, TrendChart, WeeklyChart } from "./charts";
+import { RepStrip } from "./RepStrip";
 
 const topFault = (set: SetRecord): string | null => {
   const [id] = Object.entries(set.summary.faults).sort((a, b) => b[1] - a[1])[0] ?? [];
@@ -13,9 +14,11 @@ const topFault = (set: SetRecord): string | null => {
   return id === "partial" ? "Partial reps" : set.config.rules.find((r) => r.id === id)?.cue ?? id;
 };
 
-const HISTORY_SHOWN = 3;
+const HISTORY_SHOWN = 4;
 
-function ExerciseProgress({ sets, onOpen }: { sets: SetRecord[]; onOpen: (set: SetRecord) => void }) {
+function ExerciseProgress({ sets, level, achievements, onOpen }: {
+  sets: SetRecord[]; level: ReactNode; achievements: ReactNode; onOpen: (set: SetRecord) => void;
+}) {
   const now = useMemo(() => new Date(), []);
   const [showAll, setShowAll] = useState(false);
   const history = showAll ? sets : sets.slice(0, HISTORY_SHOWN);
@@ -24,59 +27,77 @@ function ExerciseProgress({ sets, onOpen }: { sets: SetRecord[]; onOpen: (set: S
   const primary = metricInfo(latest.config.primaryMetric);
   const best = bestSet(sets);
   const totalReps = sets.reduce((n, s) => n + s.summary.reps, 0);
+  const streak = weekStreak(sets, now);
+  const trend = (chart: ReactNode) => points.length < 2
+    ? <p className="hint empty-chart">Trends appear after your second set.</p> : chart;
 
   return (
     <>
-      <h2>History</h2>
-      <ul className="history">
-        {history.map((set) => {
-          const s = set.summary;
-          const fault = topFault(set);
-          return (
-            <li key={set.id}>
-              <button onClick={() => onOpen(set)}>
-                <span className="when">
-                  {new Date(s.started).toLocaleString(undefined, { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
-                </span>
-                <b>{s.reps} reps · {s.cleanReps} clean</b>
-                <span>{fault ?? "No faults"}</span>
+      <dl className="kpi-strip">
+        <div><dt>Sets</dt><dd className="num">{sets.length}</dd></div>
+        <div><dt>Counted reps</dt><dd className="num">{totalReps.toLocaleString()}</dd></div>
+        <div><dt>Week streak</dt><dd className="num">{streak}<small> {streak === 1 ? "week" : "weeks"}</small></dd></div>
+        <div>
+          <dt>Best set</dt>
+          <dd className="num">{best ? <>{best.summary.cleanReps}<small> clean, {shortDate(new Date(best.summary.started))}</small></> : <span className="dash">–</span>}</dd>
+        </div>
+      </dl>
+
+      <div className="cols keep-order">
+        <div className="col-main">
+          <section className="panel p-clean">
+            {trend(<TrendChart title="Clean reps" subtitle="Share of counted reps with no form faults, per set."
+              unit="%" domain={[0, 100]} points={points.map((p) => ({ key: p.id, date: p.started, value: p.cleanPct }))} />)}
+          </section>
+          <section className="panel p-weekly">
+            <WeeklyChart weeks={weeklyTotals(sets, now)} />
+          </section>
+          <section className="panel p-range">
+            {trend(<TrendChart title={`Range of motion: ${primary.label.toLowerCase()}`}
+              subtitle="Median lowest point of each set's reps; lower is a fuller rep."
+              unit={primary.unit} points={points.map((p) => ({ key: p.id, date: p.started, value: p.depth }))}
+              refLine={{ value: latest.config.bottomThreshold, label: `rep counts below ${latest.config.bottomThreshold}${primary.unit}` }} />)}
+          </section>
+          <section className="panel p-tempo">
+            {trend(<TrendChart title="Lowering tempo" subtitle="Average seconds on the way down; 2–3 s is controlled."
+              unit="s" points={points.map((p) => ({ key: p.id, date: p.started, value: p.avgDownS }))} />)}
+          </section>
+        </div>
+
+        <aside className="col-side">
+          {level}
+          <section className="panel p-history">
+            <div className="panel-head">
+              <h2>History</h2>
+              <span className="meta">{sets.length} {sets.length === 1 ? "set" : "sets"}</span>
+            </div>
+            <ul className="history">
+              {history.map((set) => {
+                const s = set.summary;
+                const fault = topFault(set);
+                return (
+                  <li key={set.id}>
+                    <button onClick={() => onOpen(set)}>
+                      <span className="history-line">
+                        <b>{new Date(s.started).toLocaleString(undefined, { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</b>
+                        <span className="num">{s.cleanReps}<span className="of"> / {s.reps}</span></span>
+                      </span>
+                      <RepStrip reps={set.reps} />
+                      <span className="meta">{fault ?? "No faults"}</span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+            {sets.length > HISTORY_SHOWN && (
+              <button className="ghost show-all" onClick={() => setShowAll((v) => !v)}>
+                {showAll ? "Show fewer" : `Show all ${sets.length} sets`}
               </button>
-            </li>
-          );
-        })}
-      </ul>
-      {sets.length > HISTORY_SHOWN && (
-        <button className="ghost show-all" onClick={() => setShowAll((v) => !v)}>
-          {showAll ? "Show fewer" : `Show all ${sets.length} sets`}
-        </button>
-      )}
-
-      <h2>Overview</h2>
-      <div className="stats">
-        <div><b>{sets.length}</b><span>{sets.length === 1 ? "set" : "sets"}</span></div>
-        <div><b>{totalReps}</b><span>reps</span></div>
-        <div><b>{weekStreak(sets, now)}</b><span>week streak</span></div>
+            )}
+          </section>
+          {achievements}
+        </aside>
       </div>
-      {best && (
-        <p className="since-last">
-          Best set: <b>{best.summary.cleanReps} clean reps</b> on {shortDate(new Date(best.summary.started))}
-        </p>
-      )}
-
-      <h2>Trends</h2>
-      <div className="chart-grid">
-        <WeeklyChart weeks={weeklyTotals(sets, now)} />
-        <TrendChart title="Clean reps" subtitle="Share of counted reps with no form faults, per set."
-          unit="%" domain={[0, 100]} points={points.map((p) => ({ key: p.id, date: p.started, value: p.cleanPct }))} />
-        <TrendChart title={`Range of motion: ${primary.label.toLowerCase()}`}
-          subtitle="Median lowest point of each set's reps; lower is a fuller rep."
-          unit={primary.unit} points={points.map((p) => ({ key: p.id, date: p.started, value: p.depth }))}
-          refLine={{ value: latest.config.bottomThreshold, label: `rep counts below ${latest.config.bottomThreshold}${primary.unit}` }} />
-        <TrendChart title="Lowering tempo" subtitle="Average seconds on the way down; 2–3 s is controlled."
-          unit="s" points={points.map((p) => ({ key: p.id, date: p.started, value: p.avgDownS }))} />
-      </div>
-      {points.length < 2 && <p className="hint">Trend charts appear after your second set.</p>}
-
     </>
   );
 }
@@ -112,37 +133,41 @@ export function Progress({ sets, prog, onOpen, onAchievements }: {
   const exercise = picked && exercises.some(([k]) => k === picked) ? picked : exercises[0]?.[0];
   const ofExercise = useMemo(() => (sets ?? []).filter((s) => s.summary.exercise === exercise), [sets, exercise]);
 
+  const level = prog && <LevelCard level={prog.level} unlocked={Object.keys(prog.unlocked).length} />;
+  const achievements = prog && sets && (
+    <section className="panel p-achievements">
+      <AchievementTeaser prog={prog} sets={sets} onOpen={onOpen} onSeeAll={onAchievements} />
+    </section>
+  );
+
   return (
     <main className="page wide">
       <div className="title-row">
-        <h1>Progress</h1>
-        {sets && sets.length > 0 && (
-          <MoreMenu><button onClick={() => exportHistory()}>Export history (JSON)</button></MoreMenu>
-        )}
+        <div>
+          <h1>Progress</h1>
+          {sets && sets.length > 0 && <p className="sub">Is your form getting cleaner? Every set you finish is charted here.</p>}
+        </div>
+        <div className="title-actions">
+          {exercises.length > 1 && (
+            <div className="segmented tabs" role="group" aria-label="Exercise">
+              {exercises.map(([key, name]) => (
+                <button key={key} className={key === exercise ? "selected" : ""} aria-pressed={key === exercise}
+                  onClick={() => setPicked(key)}>{name}</button>
+              ))}
+            </div>
+          )}
+          {sets && sets.length > 0 && (
+            <MoreMenu><button onClick={() => exportHistory()}>Export history (JSON)</button></MoreMenu>
+          )}
+        </div>
       </div>
       {sets === null ? null : sets.length === 0 ? (
-        <div className="empty">
+        <div className="panel empty">
           <p className="lede">No sets yet. Finish a set and your reps, form trends and achievements will show up here.</p>
           <a className="button primary" href="#/">Start your first set</a>
         </div>
       ) : (
-        <>
-          {prog && (
-            <>
-              <LevelCard level={prog.level} unlocked={Object.keys(prog.unlocked).length} />
-              <AchievementTeaser prog={prog} sets={sets} onOpen={onOpen} onSeeAll={onAchievements} />
-              <h2>Exercises</h2>
-            </>
-          )}
-          {exercises.length > 1 && (
-            <div className="segmented sticky" style={{ gridTemplateColumns: `repeat(${exercises.length}, 1fr)` }}>
-              {exercises.map(([key, name]) => (
-                <button key={key} className={key === exercise ? "selected" : ""} onClick={() => setPicked(key)}>{name}</button>
-              ))}
-            </div>
-          )}
-          <ExerciseProgress key={exercise} sets={ofExercise} onOpen={onOpen} />
-        </>
+        <ExerciseProgress key={exercise} sets={ofExercise} level={level} achievements={achievements} onOpen={onOpen} />
       )}
     </main>
   );
