@@ -502,22 +502,89 @@ input[type="checkbox"][role="switch"]:checked::after { transform: translateX(16p
 .lab-export { flex-basis: 100%; padding-top: var(--space-3); }
 .lab-export p { margin: var(--space-2) 0 0; }
 
-/* About. */
-.about-page p { margin: 0 0 var(--space-3); line-height: 22px; }
-.about-page h2 { margin-top: var(--space-6); }
-.about-page .lede { margin-top: var(--space-2); }
-.about-page ol.steps { list-style: decimal; padding-left: 20px; gap: var(--space-3); }
-.about-page ol.steps li { display: list-item; }
-.about-page ol.steps li > i { display: none; }
-.about-page ol.steps div { display: grid; gap: 2px; }
-.about-footer { display: grid; gap: var(--space-1); margin-top: var(--space-6); padding-top: var(--space-4); border-top: 1px solid var(--rule); }
-.about-page .about-footer p { margin: 0; }
-.cards { list-style: none; padding: 0; margin: 0; display: grid; gap: var(--space-2); }
-.cards li { display: grid; gap: 2px; padding: var(--space-4) var(--card-pad); background: var(--surface); border-radius: 12px; }
-.cards span { color: var(--muted); }
-.tips { margin: 0; padding-left: 1.2em; display: grid; gap: var(--space-2); }
+/* About: one real squat, tracked, carries the page. Read like a page, framed like the app. */
+.about-page { display: grid; gap: 72px; }
+.about-page p { margin: 0; }
+.about-page h2 { margin: 0; font-size: 20px; line-height: 28px; }
+.about-page h3 { margin: 0 0 var(--space-3); font-size: 16px; line-height: 24px; }
+.about-hero { display: grid; gap: var(--space-5); }
+.about-hero-text { display: grid; gap: var(--space-4); justify-items: start; align-content: center; }
+.about-page h1 { font-size: 26px; line-height: 32px; letter-spacing: -0.02em; max-width: 14ch; }
+.about-lede { font-size: 17px; line-height: 26px; color: var(--muted); max-width: 44ch; }
+.about-hero-pic { margin: 0; display: grid; gap: var(--space-2); }
+.about-page figcaption { color: var(--faint); font-size: 13px; line-height: 18px; }
+.about-page figcaption b { color: var(--text); font-weight: 500; margin-right: 6px; }
+
+.pose-photo { position: relative; overflow: hidden; border-radius: 12px; background: var(--surface); }
+.pose-photo img { display: block; width: 100%; height: auto; filter: saturate(0.85) brightness(0.8); }
+.pose-photo svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.skeleton line { stroke: rgba(255, 255, 255, 0.92); stroke-linecap: round; }
+.skeleton circle { fill: var(--accent); }
+.knee-label { fill: var(--text); font-weight: 600; paint-order: stroke; stroke: rgba(0, 0, 0, 0.6); stroke-width: 0.06; }
+
+.about-section { display: grid; gap: var(--space-5); }
+.about-head { display: grid; gap: var(--space-2); max-width: 62ch; }
+.about-head p { color: var(--muted); font-size: 15px; line-height: 22px; }
+.about-head .about-statement { color: var(--text); font-size: 20px; line-height: 28px; font-weight: 500; max-width: 34ch; }
+
+/* The demo: the pose on the left, the knee angle and its counting line on the right. */
+.rep-demo { display: grid; gap: var(--gap); background: var(--surface); border-radius: var(--radius-card); padding: var(--card-pad); }
+.demo-stage { background: var(--ground); border-radius: 12px; display: grid; place-items: center; padding: var(--space-3); }
+.demo-stage svg { width: 100%; max-width: 280px; aspect-ratio: 3 / 4; height: auto; }
+.demo-side { display: grid; gap: var(--space-4); align-content: start; min-width: 0; }
+.demo-readout { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-4); margin: 0; }
+.demo-readout dt { color: var(--muted); font-size: 13px; }
+.demo-readout dd { margin: 0; font-size: 36px; line-height: 44px; font-weight: 600; letter-spacing: -0.02em; }
+.demo-readout .deep dd { color: var(--accent); }
+.demo-status { color: var(--muted); min-height: 40px; }
+.demo-trace { display: grid; gap: var(--space-2); }
+.demo-plot { position: relative; height: 180px; margin-left: 64px; }
+.demo-plot svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.demo-plot .grid { stroke: var(--grid); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.demo-plot .count-line { stroke: var(--text); stroke-width: 1; stroke-dasharray: 4 4; vector-effect: non-scaling-stroke; }
+.demo-plot .knee-line { fill: none; stroke: var(--accent); stroke-width: 2; vector-effect: non-scaling-stroke; stroke-linejoin: round; }
+.demo-plot .tick { position: absolute; right: calc(100% + 8px); transform: translateY(-50%); font-size: 11px; color: var(--faint); white-space: nowrap;
+  font-variant-numeric: tabular-nums; }
+.demo-plot .tick.line { color: var(--text); font-weight: 500; }
+.demo-plot .playhead { position: absolute; top: 0; bottom: 0; width: 2px; margin-left: -1px; background: var(--text); pointer-events: none; }
+.demo-plot input[type="range"] { position: absolute; inset: -12px 0; width: 100%; height: calc(100% + 24px); margin: 0; opacity: 0; cursor: ew-resize; touch-action: none; }
+.demo-plot:focus-within { outline: 2px solid var(--text); outline-offset: 6px; border-radius: 4px; }
+.demo-foot { display: flex; justify-content: space-between; align-items: center; margin-left: 64px; color: var(--faint); font-size: 12px; }
+
+.cue-columns { display: grid; gap: var(--space-5); padding: var(--space-5) var(--card-pad); }
+.cue-list ul { list-style: none; margin: 0; padding: 0; display: grid; }
+.cue-list li { padding: 12px 0; font-size: 17px; line-height: 24px; }
+.cue-list li + li { border-top: 1px solid var(--rule); }
+
+.phase-strip { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3); }
+.phase-strip figure { margin: 0; display: grid; gap: var(--space-2); }
+.setup-columns { display: grid; gap: var(--space-4); }
+.setup-columns p { display: grid; gap: 2px; color: var(--muted); max-width: 46ch; }
+.setup-columns b { color: var(--text); font-weight: 500; }
+
+.about-steps { list-style: none; margin: 0; padding: 0; display: grid; }
+.about-steps li { display: grid; gap: 2px; padding: 14px 0; }
+.about-steps li + li { border-top: 1px solid var(--rule); }
+.about-steps b { font-weight: 600; }
+.about-steps span { color: var(--muted); }
+
+.ledger { display: grid; gap: var(--space-5); padding: var(--space-5) var(--card-pad); }
+.ledger > div { display: grid; gap: var(--space-3); align-content: start; }
+.ledger h3 { margin: 0; }
+.ledger ul { list-style: none; margin: 0; padding: 0; display: grid; }
+.ledger li { display: grid; gap: 2px; padding: 12px 0; color: var(--muted); }
+.ledger li + li { border-top: 1px solid var(--rule); }
+.ledger li b { color: var(--text); font-weight: 500; }
+.ledger a { color: var(--text); }
+
+.about-footer { display: grid; gap: var(--space-4); padding-top: var(--space-6); border-top: 1px solid var(--rule); }
+.about-footer p { color: var(--faint); font-size: 13px; line-height: 18px; }
+.about-page .about-name { font-size: clamp(48px, 14vw, 96px); line-height: 0.9; color: var(--text); }
 
 @media (min-width: 640px) {
+  .phase-strip { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .cue-columns, .ledger, .setup-columns { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .setup-columns p:last-child { grid-column: 1 / -1; }
   .kpi-strip { grid-template-columns: repeat(4, minmax(0, 1fr)); }
   .choices { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -543,6 +610,17 @@ input[type="checkbox"][role="switch"]:checked::after { transform: translateX(16p
   .col-main { grid-column: span 8; }
   .col-side { grid-column: span 4; order: 0; }
   .setting-row { grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: var(--space-6); }
+  .about-page { gap: 120px; }
+  .about-page h1 { font-size: 32px; line-height: 38px; }
+  .about-hero { grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: var(--space-6); align-items: center; }
+  .rep-demo { grid-template-columns: minmax(0, 4fr) minmax(0, 8fr); gap: var(--space-6); padding: var(--space-6); }
+  .about-steps { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: var(--space-5); align-items: start; }
+  .about-steps li { padding: var(--space-4) 0 0; border-top: 2px solid var(--raised); align-content: start; }
+  .about-steps li + li { border-top: 2px solid var(--raised); }
+  .cue-columns, .ledger { gap: var(--space-6); padding: var(--space-6); }
+  .setup-columns { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .setup-columns p:last-child { grid-column: auto; }
+  .about-footer { grid-template-columns: auto 1fr; align-items: end; gap: var(--space-6); }
   .setting-label { padding-top: var(--space-4); }
 }
 
