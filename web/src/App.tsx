@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useAccount } from "./cloud/account";
+import { cloudConfigured, useAccount } from "./cloud/account";
+import type { FeedbackSource } from "./cloud/feedback";
 import { EXERCISE_KEYS, createExercise } from "./engine/exercises";
 import { Speaker } from "./engine/feedback";
 import type { SessionRecord } from "./engine/session";
@@ -12,10 +13,12 @@ import { setXp } from "./store/level";
 import { previousSet } from "./store/progress";
 import { toSessionRecord, toSetRecord, type SetRecord } from "./store/record";
 import { acceptDisclaimer, disclaimerAccepted } from "./store/consent";
+import { feedbackLater, feedbackNever, feedbackSent, shouldAskFeedback } from "./store/feedback";
 import { useSettings } from "./store/settings";
 import { About } from "./ui/About";
 import { AchievementBoard, EarnedInSet, SetProgressPanel } from "./ui/Achievements";
 import { Disclaimer } from "./ui/Disclaimer";
+import { FeedbackSheet } from "./ui/Feedback";
 import { Home } from "./ui/Home";
 import { LabExport } from "./ui/LabExport";
 import { LiveSession, type LabCapture } from "./ui/LiveSession";
@@ -37,6 +40,7 @@ export function App() {
   const [settings, updateSettings] = useSettings();
   const [picked, setPicked] = useState<string | null>(null);
   const [accepted, setAccepted] = useState(disclaimerAccepted);
+  const [feedback, setFeedback] = useState<{ source: FeedbackSource; set: SetRecord | null } | null>(null);
   const lab = useMemo(() => labEnabled(), []);
   const sets = useSets();
   const unlocks = useUnlocks();
@@ -103,7 +107,13 @@ export function App() {
       <Summary record={session.record} previous={sets && previousSet(sets, session.set)} playback={session.playback}
         progress={setProg && <SetProgressPanel progress={setProg} />}>
         <button className="primary" onClick={start}>Go again</button>
-        <button className="ghost" onClick={closeSession}>Done</button>
+        <button className="ghost" onClick={() => {
+          // The end of a workout: offer the survey over the page the summary closes back to.
+          if (cloudConfigured && session.record.reps.length > 0 && shouldAskFeedback()) {
+            setFeedback({ source: "summary", set: session.set });
+          }
+          closeSession();
+        }}>Done</button>
         {session.lab && <LabExport record={session.record} capture={session.lab} />}
       </Summary>
     );
@@ -158,7 +168,8 @@ export function App() {
       page = <About configs={configs} />;
       break;
     case "settings":
-      page = <Settings settings={settings} onChange={updateSettings} configs={configs} />;
+      page = <Settings settings={settings} onChange={updateSettings} configs={configs}
+        onFeedback={cloudConfigured ? () => setFeedback({ source: "settings", set: null }) : undefined} />;
       break;
   }
 
@@ -166,6 +177,11 @@ export function App() {
     <Shell route={route}>
       {page}
       {!accepted && <Disclaimer onAccept={() => { acceptDisclaimer(); setAccepted(true); }} />}
+      {feedback && <FeedbackSheet source={feedback.source} set={feedback.set} model={settings.model} onClose={(outcome) => {
+        if (outcome === "sent") feedbackSent();
+        else if (feedback.source === "summary") (outcome === "never" ? feedbackNever : feedbackLater)();
+        setFeedback(null);
+      }} />}
     </Shell>
   );
 }

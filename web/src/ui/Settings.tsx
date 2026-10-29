@@ -27,8 +27,10 @@ const BUILD_QUESTIONS: { segment: keyof Body; question: string; hint: string }[]
   { segment: "torso", question: "Your torso", hint: "Compared with your legs. A short torso needs more forward lean." },
 ];
 
-export function Settings({ settings, onChange, configs }: {
+export function Settings({ settings, onChange, configs, onFeedback }: {
   settings: SettingsValue; onChange: (patch: Partial<SettingsValue>) => void; configs: Record<string, ExerciseConfig>;
+  /** Opens the feedback survey; absent when the app runs without Supabase. */
+  onFeedback?: () => void;
 }) {
   const buildFor = EXERCISE_KEYS.filter((k) => Object.keys(configs[k].proportions).length > 0).map((k) => configs[k].name);
   const { body } = settings;
@@ -43,6 +45,14 @@ export function Settings({ settings, onChange, configs }: {
       <h2>Support cleanReps</h2>
       <p className="lede">cleanReps is free. Donations help cover hosting and the AI coach.</p>
       <a className="button donate" href="https://ko-fi.com/nnguyen" target="_blank" rel="noopener">Donate</a>
+
+      {onFeedback && (
+        <>
+          <h2>Feedback</h2>
+          <p className="lede">Tell us what's working and what isn't. Five quick questions, all optional.</p>
+          <button className="donate" onClick={onFeedback}>Send feedback</button>
+        </>
+      )}
 
       {buildFor.length > 0 && (
         <>

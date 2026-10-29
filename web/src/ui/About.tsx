@@ -26,6 +26,7 @@ export function About({ configs }: { configs: Record<string, ExerciseConfig> }) 
       <h2>Private by design</h2>
       <p>Pose tracking runs in your browser, and video never leaves your device. For the replay, the set is recorded into this page's memory only: it's never saved or uploaded, and it's gone when you leave the summary. Turn off "Record for replay" in Settings to skip recording altogether.</p>
       <p>No account needed: history is saved on this device.</p>
+      <p>The feedback survey is optional. If you send it, your answers go with the set's exercise, rep and fault counts, the pose model and your device type (phone, tablet or desktop). Never video.</p>
 
       <h2>Optional sign-in</h2>
       <p>Sign in with Google in <a href="#/settings">Settings</a> to back up and sync your history and to get a written AI review of each set. Only the set's numbers leave your device, never video.</p>
