@@ -1,9 +1,10 @@
 import { useEffect, type ReactNode } from "react";
+import { useAccount } from "../cloud/account";
 import { routeHref, tabOf, type Route, type Tab } from "../route";
 import { Logo } from "./Logo";
 
 const svg = (path: ReactNode) => (
-  <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2"
+  <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.6"
     strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{path}</svg>
 );
 
@@ -20,8 +21,24 @@ const TABS: { tab: Tab; label: string; route: Route }[] = [
   { tab: "settings", label: "Settings", route: { page: "settings" } },
 ];
 
-/** Page frame with the tab bar: at the bottom on phones, at the top (with the logo) from 768px. */
-export function Shell({ route, children }: { route: Route; children: ReactNode }) {
+const CRUMBS: Record<Route["page"], string[]> = {
+  home: ["Home"], progress: ["Progress"], achievements: ["Progress", "Achievements"], set: ["Progress", "Set"],
+  about: ["About"], settings: ["Settings"],
+};
+
+function StorageStatus() {
+  const account = useAccount();
+  if (account.status !== "signed-in") return <span className="topbar-status">History saved on this device</span>;
+  const { sync } = account;
+  const text = sync.kind === "syncing" ? "Syncing…" : sync.kind === "error" ? "Sync failed"
+    : sync.at ? `Synced ${sync.at.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}` : "Backed up";
+  return <span className="topbar-status">{account.user?.name} · {text}</span>;
+}
+
+/** Page frame: a sidebar and top bar from 1024px; on smaller screens, a tab bar at the bottom. */
+export function Shell({ route, startLabel, onStart, children }: {
+  route: Route; startLabel: string; onStart: () => void; children: ReactNode;
+}) {
   const active = tabOf(route);
   const href = routeHref(route);
   useEffect(() => {
@@ -33,12 +50,23 @@ export function Shell({ route, children }: { route: Route; children: ReactNode }
       <nav className="tabbar" aria-label="Main">
         <Logo />
         {TABS.map(({ tab, label, route: to }) => (
-          <a key={tab} href={routeHref(to)} className={tab === active ? "active" : undefined}
+          <a key={tab} href={routeHref(to)} className={`tab-${tab}${tab === active ? " active" : ""}`}
             aria-current={tab === active ? "page" : undefined}>
             {ICONS[tab]}<span>{label}</span>
           </a>
         ))}
       </nav>
+      <header className="topbar">
+        <p className="crumbs">
+          {CRUMBS[route.page].map((c, i, all) => i < all.length - 1
+            ? <span key={c}><a href={routeHref(TABS.find((t) => t.label === c)!.route)}>{c}</a> / </span>
+            : <b key={c}>{c}</b>)}
+        </p>
+        <div className="topbar-end">
+          <StorageStatus />
+          {route.page !== "home" && <button className="primary" onClick={onStart}>{startLabel}</button>}
+        </div>
+      </header>
       {children}
     </div>
   );

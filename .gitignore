@@ -22,3 +22,6 @@ supabase/.temp/
 # Source clips (may be licensed for local use only) and the generated demo site
 vids/
 site/
+
+# Working files and screenshots from the design-taste-frontend skill
+.taste-skill/

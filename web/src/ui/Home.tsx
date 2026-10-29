@@ -1,12 +1,13 @@
 import { useMemo } from "react";
 import type { ExerciseConfig } from "../engine/exercise";
 import { EXERCISE_KEYS } from "../engine/exercises";
-import type { Progression } from "../store/achievements";
-import { weekStreak } from "../store/progress";
+import { ACHIEVEMENTS, type Progression } from "../store/achievements";
+import { weeklyTotals, weekStreak } from "../store/progress";
 import type { SetRecord } from "../store/record";
 import type { Settings } from "../store/settings";
 import { LevelCard } from "./Achievements";
 import { Logo } from "./Logo";
+import { RepStrip } from "./RepStrip";
 
 const STEPS = [
   { title: "Pick an exercise", text: "Squats or push-ups." },
@@ -34,33 +35,63 @@ function settingsLine(s: Settings, usesBuild: boolean): string {
   ].filter(Boolean).join(" · ");
 }
 
-function WelcomeBack({ sets, prog }: { sets: SetRecord[]; prog: Progression | null }) {
-  const now = useMemo(() => new Date(), []);
-  const last = sets[0].summary;
-  const streak = weekStreak(sets, now);
+const topFault = (set: SetRecord): string | null => {
+  const [id] = Object.entries(set.summary.faults).sort((a, b) => b[1] - a[1])[0] ?? [];
+  if (!id) return null;
+  return id === "partial" ? "Partial reps" : set.config.rules.find((r) => r.id === id)?.cue ?? id;
+};
+
+const EARLIER_SHOWN = 3;
+
+function LastSet({ sets, now }: { sets: SetRecord[]; now: Date }) {
+  const [set, ...rest] = sets;
+  const s = set.summary;
+  const fault = topFault(set);
   return (
-    <section className="welcome">
-      <h1>Welcome back</h1>
-      {prog && <LevelCard level={prog.level} unlocked={Object.keys(prog.unlocked).length} />}
-      <p className="last-set">
-        Last set: <b>{sets[0].config.name}</b> {relativeDay(new Date(last.started), now)} · {last.reps} reps, {last.cleanReps} clean
-        {streak > 1 && <><br /><span className="streak">{streak}-week streak. Keep it going.</span></>}
-      </p>
+    <section className="panel last-set">
+      <div className="panel-head">
+        <h2>Last set</h2>
+        <a className="text-link" href={`#/set/${encodeURIComponent(set.id)}`}>Open</a>
+      </div>
+      <p className="figure"><b className="num">{s.cleanReps}</b><span> of {s.reps} reps clean</span></p>
+      <RepStrip reps={set.reps} size="large" />
+      <p className="meta">{set.config.name}, {relativeDay(new Date(s.started), now)}. {fault ? `Most often: ${fault.toLowerCase()}.` : "No faults."}</p>
+      {rest.length > 0 && (
+        <ul className="earlier" aria-label="Earlier sets">
+          {rest.slice(0, EARLIER_SHOWN).map((e) => (
+            <li key={e.id}>
+              <a href={`#/set/${encodeURIComponent(e.id)}`}>
+                <span className="earlier-name">{e.config.name}<span>{relativeDay(new Date(e.summary.started), now)}</span></span>
+                <RepStrip reps={e.reps} />
+                <span className="num">{e.summary.cleanReps}<span className="of"> / {e.summary.reps}</span></span>
+              </a>
+            </li>
+          ))}
+        </ul>
+      )}
     </section>
   );
 }
 
-function Hero() {
+function Totals({ sets, prog, now }: { sets: SetRecord[]; prog: Progression | null; now: Date }) {
+  const week = weeklyTotals(sets, now, 1)[0];
+  const streak = weekStreak(sets, now);
   return (
-    <section className="hero">
-      <h1>Every rep, counted and checked.</h1>
-      <p className="lede">Prop up your phone and train. cleanReps counts your reps and calls out form issues as you go. Pose tracking runs on this device, and video never leaves it.</p>
-      <ol className="steps">
-        {STEPS.map((s, i) => (
-          <li key={s.title}><i>{i + 1}</i><div><b>{s.title}</b><span>{s.text}</span></div></li>
-        ))}
-      </ol>
-      <a className="text-link" href="#/about">How it works</a>
+    <dl className="kpi-strip">
+      <div><dt>Reps this week</dt><dd className="num">{week?.reps ?? 0}</dd></div>
+      <div><dt>Sets this week</dt><dd className="num">{week?.sets ?? 0}</dd></div>
+      <div><dt>Week streak</dt><dd className="num">{streak}<small> {streak === 1 ? "week" : "weeks"}</small></dd></div>
+      <div><dt>Achievements</dt><dd className="num">{prog ? Object.keys(prog.unlocked).length : 0}<small> / {ACHIEVEMENTS.length}</small></dd></div>
+    </dl>
+  );
+}
+
+function FirstRun() {
+  return (
+    <section className="first-run">
+      <ul className="steps">
+        {STEPS.map((s) => <li key={s.title}><b>{s.title}</b><span>{s.text}</span></li>)}
+      </ul>
     </section>
   );
 }
@@ -69,35 +100,62 @@ export function Home({ sets, prog, configs, exercise, onExercise, settings, onSt
   sets: SetRecord[] | null; prog: Progression | null; configs: Record<string, ExerciseConfig>;
   exercise: string; onExercise: (key: string) => void; settings: Settings; onStart: () => void;
 }) {
+  const now = useMemo(() => new Date(), []);
   const usesBuild = Object.keys(configs[exercise].proportions).length > 0;
+  const returning = !!sets && sets.length > 0;
 
   return (
-    <main className="page has-start">
+    <main className="page wide has-start home">
       <header className="app-header">
         <Logo />
       </header>
 
-      {sets && (sets.length > 0 ? <WelcomeBack sets={sets} prog={prog} /> : <Hero />)}
-
-      <h2>Exercise</h2>
-      <div className="choices" role="radiogroup" aria-label="Exercise">
-        {EXERCISE_KEYS.map((k) => (
-          <button key={k} className={`choice ${k === exercise ? "selected" : ""}`} role="radio"
-            aria-checked={k === exercise} onClick={() => onExercise(k)}>
-            <b>{configs[k].name}</b>
-            <span>{configs[k].cameraHint}</span>
-          </button>
-        ))}
+      <div className="title-row">
+        <div>
+          <h1>{returning ? "Welcome back" : "Every rep, counted and checked"}</h1>
+          <p className="sub">
+            {returning
+              ? `${sets.length} ${sets.length === 1 ? "set" : "sets"} so far, saved on this device.`
+              : "Prop up your phone and train. Pose tracking runs on this device, and video never leaves it."}
+          </p>
+        </div>
       </div>
 
-      <a className="settings-summary" href="#/settings">
-        <span>{settingsLine(settings, usesBuild)}</span>
-        <span className="text-link">Change</span>
-      </a>
+      <div className="home-grid">
+        <section className="panel next-set">
+          <div className="panel-head">
+            <h2>Next set</h2>
+            <a className="text-link" href="#/about">How it works</a>
+          </div>
+          <div className="choices" role="radiogroup" aria-label="Exercise">
+            {EXERCISE_KEYS.map((k) => (
+              <button key={k} className={`choice ${k === exercise ? "selected" : ""}`} role="radio"
+                aria-checked={k === exercise} onClick={() => onExercise(k)}>
+                <b>{configs[k].name}</b>
+                <span>{configs[k].cameraHint}</span>
+              </button>
+            ))}
+          </div>
+          <div className="next-foot">
+            <a className="settings-summary" href="#/settings">
+              <span>{settingsLine(settings, usesBuild)}</span>
+              <span className="text-link">Change</span>
+            </a>
+            <div className="start-bar">
+              <button className="primary big" onClick={onStart}>Start {configs[exercise].name.toLowerCase()}</button>
+            </div>
+          </div>
+        </section>
 
-      <div className="start-bar">
-        <button className="primary big" onClick={onStart}>Start {configs[exercise].name.toLowerCase()}</button>
+        {returning ? <LastSet sets={sets} now={now} /> : <FirstRun />}
       </div>
+
+      {returning && (
+        <>
+          <Totals sets={sets} prog={prog} now={now} />
+          {prog && <LevelCard level={prog.level} unlocked={Object.keys(prog.unlocked).length} />}
+        </>
+      )}
     </main>
   );
 }

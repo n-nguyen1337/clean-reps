@@ -60,7 +60,7 @@ npm test           # engine unit tests + parity tests against the Python engine
 npm run build      # type-check, then build a static site into web/dist
 ```
 
-`dev` and `build` first run [web/scripts/fetch-assets.mjs](web/scripts/fetch-assets.mjs), which copies the MediaPipe wasm runtime into `public/mediapipe/` and the lite and full pose models into `public/models/` (from `../models/` if present, otherwise downloaded). Nothing is loaded from a CDN at runtime.
+`dev` and `build` first run [web/scripts/fetch-assets.mjs](web/scripts/fetch-assets.mjs), which copies the MediaPipe wasm runtime into `public/mediapipe/` and the lite and full pose models into `public/models/` (from `../models/` if present, otherwise downloaded). Nothing the app needs is loaded from a CDN at runtime; the only third-party script is GoatCounter's page counter (`index.html`), which skips localhost.
 
 Phones default to the lite model and other devices to the full one; override with `?model=lite` or `?model=full`, or in the settings on the start screen.
 

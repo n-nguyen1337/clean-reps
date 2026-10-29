@@ -7,8 +7,7 @@ import type { Playback } from "../playback/playback";
 import type { SetRecord } from "../store/record";
 import { RuleChart, shortDate, TempoChart, TraceChart } from "./charts";
 import { Player, type PlayerHandle } from "./Player";
-
-const ICON = { warn: "!", good: "✓", info: "i" } as const;
+import { RepStrip } from "./RepStrip";
 
 type Coach = { kind: "idle" } | { kind: "loading" } | { kind: "done"; report: CoachReport; remaining: number }
   | { kind: "error"; message: string };
@@ -35,7 +34,7 @@ function CoachSection({ record, analysis }: { record: SessionRecord; analysis: R
         <p>{r.assessment}</p>
         {r.strengths.length > 0 && (
           <ul className="insights">
-            {r.strengths.map((s) => <li key={s} className="good"><i>{ICON.good}</i>{s}</li>)}
+            {r.strengths.map((s) => <li key={s} className="good"><i aria-hidden="true" />{s}</li>)}
           </ul>
         )}
         {r.fixes.map((f, i) => (
@@ -127,98 +126,150 @@ export function Summary({ record, previous, playback, progress, back, children }
   const playFault = playback ? (id: string) => playRow(analysis.rows.find((r) => r.rep.faults.includes(id))) : undefined;
   const seek = playback ? (t: number) => { player.current?.seek(t); reveal(); } : undefined;
 
+  // Every chart shows on wider screens; a phone shows one at a time, opening on the most frequent fault's.
+  const charts = [
+    ...record.trace.length > 1 ? [{
+      id: "trace", label: "Whole set", faults: 0,
+      node: <TraceChart trace={record.trace} metric={cfg.primaryMetric} rows={analysis.rows} refs={refs} cursor={replayT} onSeek={seek} />,
+    }] : [],
+    ...charted.map((series) => ({
+      id: series.rule.id, label: series.rule.cue, faults: s.faults[series.rule.id] ?? 0,
+      node: <RuleChart series={series} onSelect={playRep} />,
+    })),
+    { id: "tempo", label: "Tempo", faults: 0, node: <TempoChart rows={analysis.rows} onSelect={playRep} /> },
+  ];
+  const [pickedChart, setPickedChart] = useState<string | null>(null);
+  const shownChart = charts.find((c) => c.id === pickedChart)?.id
+    ?? charts.find((c) => c.id === faults[0]?.[0])?.id ?? charts[0].id;
+
+  const started = new Date(s.started);
+
   return (
-    <main className="page">
+    <main className="page wide summary">
       {back}
-      <h1>{cfg.name}</h1>
-      <div className="stats">
-        <div><b>{s.reps}</b><span>reps</span></div>
-        <div><b>{s.cleanReps}</b><span>clean</span></div>
-        <div><b>{s.partialReps}</b><span>not counted</span></div>
+      <div className="title-row">
+        <div>
+          <h1>{cfg.name}</h1>
+          <p className="sub">
+            {started.toLocaleString(undefined, { weekday: "long", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
+          </p>
+        </div>
+        <div className="title-actions">{children}</div>
       </div>
-      {s.avgDownS !== null && <p>Tempo: {s.avgDownS}s down / {s.avgUpS}s up</p>}
-      {previous && <SinceLast current={s} previous={previous} />}
-      {progress}
 
-      {playback && (
-        <section ref={replay} className="replay-section">
-          <h2>Replay</h2>
-          <Player ref={player} playback={playback} rows={analysis.rows} trace={record.trace}
-            metric={cfg.primaryMetric} faultLabel={label} onTime={setReplayT} />
-        </section>
-      )}
+      <section className="panel lead">
+        <div className="lead-figure">
+          <p className="figure"><b className="num">{s.cleanReps}</b><span> of {s.reps} reps clean</span></p>
+          {previous && <SinceLast current={s} previous={previous} />}
+        </div>
+        <RepStrip reps={record.reps} size="large" legend />
+        <dl className="kpi-strip flat">
+          <div><dt>Counted</dt><dd className="num">{s.reps}</dd></div>
+          <div><dt>Clean</dt><dd className="num">{s.cleanReps}</dd></div>
+          <div><dt>Not counted</dt><dd className="num">{s.partialReps}</dd></div>
+          <div>
+            <dt>Tempo, down / up</dt>
+            <dd className="num">{s.avgDownS !== null && s.avgUpS !== null
+              ? <>{s.avgDownS.toFixed(1)}<small> s</small> / {s.avgUpS.toFixed(1)}<small> s</small></>
+              : <span className="dash">–</span>}</dd>
+          </div>
+        </dl>
+      </section>
 
-      {analysis.insights.length > 0 && (
-        <>
-          <h2>Takeaways</h2>
-          <ul className="insights">
-            {analysis.insights.map((i) => <li key={i.text} className={i.tone}><i>{ICON[i.tone]}</i>{i.text}</li>)}
-          </ul>
-        </>
-      )}
-
-      {analysis.rows.length > 0 && (
-        <>
-          {account.configured && (
-            <>
-              <h2>AI coach</h2>
-              <CoachSection record={record} analysis={analysis} />
-            </>
+      <div className="cols">
+        <div className="col-main">
+          {playback && (
+            <section ref={replay} className="panel replay-section">
+              <h2>Replay</h2>
+              <Player ref={player} playback={playback} rows={analysis.rows} trace={record.trace}
+                metric={cfg.primaryMetric} faultLabel={label} onTime={setReplayT} />
+            </section>
           )}
 
-          <h2>Charts</h2>
-          <TraceChart trace={record.trace} metric={cfg.primaryMetric} rows={analysis.rows} refs={refs}
-            cursor={replayT} onSeek={seek} />
-          {charted.map((series) => <RuleChart key={series.rule.id} series={series} onSelect={playRep} />)}
-          <TempoChart rows={analysis.rows} onSelect={playRep} />
-
-          <details className="rep-table">
-            <summary>Rep-by-rep table</summary>
-            <div className="table-scroll">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Rep</th><th>Down</th><th>Up</th>
-                    {analysis.rules.map((r) => <th key={r.rule.id}>{r.info.label}</th>)}
-                    <th>Result</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {analysis.rows.map((row) => (
-                    <tr key={row.label} className={playRep ? "clickable" : undefined}
-                      onClick={playRep && (() => playRep(row.label))}>
-                      <td>{row.label}</td>
-                      <td>{row.downS.toFixed(1)} s</td>
-                      <td>{row.upS.toFixed(1)} s</td>
-                      {analysis.rules.map((r) => {
-                        const v = row.values[r.rule.id];
-                        return <td key={r.rule.id}>{v === null ? "–" : r.info.unit === "°" ? `${v.toFixed(0)}°` : v.toFixed(2)}</td>;
-                      })}
-                      <td>{row.rep.faults.length ? row.rep.faults.map(label).join(", ") : "Clean"}</td>
-                    </tr>
+          {analysis.rows.length > 0 && (
+            <>
+              {charts.length > 1 && (
+                <div className="chart-picker" role="group" aria-label="Show chart">
+                  {charts.map((c) => (
+                    <button key={c.id} className={c.id === shownChart ? "selected" : ""} aria-pressed={c.id === shownChart}
+                      onClick={() => setPickedChart(c.id)}>
+                      {c.faults > 0 && <i className="fault-dot" aria-label={`${c.faults} flagged`} />}{c.label}
+                    </button>
                   ))}
-                </tbody>
-              </table>
-            </div>
-          </details>
-        </>
-      )}
+                </div>
+              )}
+              {charts.map((c) => (
+                <section key={c.id} className={`panel chart-panel${c.id === shownChart ? " shown" : ""}`}>{c.node}</section>
+              ))}
 
-      {faults.length > 0 && (
-        <>
-          <h2>What to work on</h2>
-          <ul className="faults">
-            {faults.map(([id, n]) => (
-              <li key={id}>
-                {playFault
-                  ? <button onClick={() => playFault(id)}><span>{label(id)}</span><b>{n}× <small>Watch</small></b></button>
-                  : <><span>{label(id)}</span><b>{n}×</b></>}
-              </li>
-            ))}
-          </ul>
-        </>
-      )}
-      <div className="row">{children}</div>
+              <details className="panel rep-table">
+                <summary>Rep-by-rep table</summary>
+                <div className="table-scroll">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th className="num">Rep</th><th className="num">Down</th><th className="num">Up</th>
+                        {analysis.rules.map((r) => <th key={r.rule.id} className="num">{r.info.label}</th>)}
+                        <th>Result</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {analysis.rows.map((row) => (
+                        <tr key={row.label} className={playRep ? "clickable" : undefined}
+                          onClick={playRep && (() => playRep(row.label))}>
+                          <td className="num">{row.label}</td>
+                          <td className="num">{row.downS.toFixed(1)} s</td>
+                          <td className="num">{row.upS.toFixed(1)} s</td>
+                          {analysis.rules.map((r) => {
+                            const v = row.values[r.rule.id];
+                            return <td key={r.rule.id} className="num">{v === null ? <span className="dash">–</span> : r.info.unit === "°" ? `${v.toFixed(0)}°` : v.toFixed(2)}</td>;
+                          })}
+                          <td>{row.rep.faults.length ? row.rep.faults.map(label).join(", ") : "Clean"}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </details>
+            </>
+          )}
+        </div>
+
+        <aside className="col-side">
+          <section className="panel">
+            <h2>What to work on</h2>
+            {faults.length > 0 ? (
+              <ul className="faults">
+                {faults.map(([id, n]) => (
+                  <li key={id}>
+                    {playFault
+                      ? <button onClick={() => playFault(id)}><span>{label(id)}</span><b className="num">{n}× <small>Watch</small></b></button>
+                      : <><span>{label(id)}</span><b className="num">{n}×</b></>}
+                  </li>
+                ))}
+              </ul>
+            ) : <p className="hint">No faults in this set.</p>}
+          </section>
+
+          {analysis.insights.length > 0 && (
+            <section className="panel">
+              <h2>Takeaways</h2>
+              <ul className="insights">
+                {analysis.insights.map((i) => <li key={i.text} className={i.tone}><i aria-hidden="true" />{i.text}</li>)}
+              </ul>
+            </section>
+          )}
+
+          {analysis.rows.length > 0 && account.configured && (
+            <section className="panel">
+              <h2>AI coach</h2>
+              <CoachSection record={record} analysis={analysis} />
+            </section>
+          )}
+
+          {progress}
+        </aside>
+      </div>
     </main>
   );
 }

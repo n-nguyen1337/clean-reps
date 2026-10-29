@@ -26,6 +26,7 @@ export function About({ configs }: { configs: Record<string, ExerciseConfig> }) 
       <h2>Private by design</h2>
       <p>Pose tracking runs in your browser, and video never leaves your device. For the replay, the set is recorded into this page's memory only: it's never saved or uploaded, and it's gone when you leave the summary. Turn off "Record for replay" in Settings to skip recording altogether.</p>
       <p>No account needed: history is saved on this device.</p>
+      <p>Page visits are counted with GoatCounter, which uses no cookies and doesn't track you across sites. It sees which page was opened, never your sets or video.</p>
       <p>The feedback survey is optional. If you send it, your answers go with the set's exercise, rep and fault counts, the pose model and your device type (phone, tablet or desktop). Never video.</p>
 
       <h2>Optional sign-in</h2>
