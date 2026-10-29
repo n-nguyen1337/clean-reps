@@ -80,7 +80,7 @@ Product
 - A feedback form linked from Settings
 
 Measurement
-- Privacy-friendly page analytics (GoatCounter or Plausible), no session data
+- ~~Privacy-friendly page analytics (GoatCounter or Plausible), no session data~~ GoatCounter added 2026-10-28
 - A few product events: set started, set finished, setup abandoned, wrong-cue report, coach used. Store them in a small Supabase table or use PostHog's free tier.
 - Error reporting with Sentry's free tier, with video and landmarks stripped
 
