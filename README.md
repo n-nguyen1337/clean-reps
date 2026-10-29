@@ -72,7 +72,7 @@ Phones default to the lite model and other devices to the full one; override wit
 | [web/src/App.tsx](web/src/App.tsx) | Screens: exercise picker, live session, summary, progress |
 | [web/src/store/](web/src/store/) | On-device history (IndexedDB via Dexie) and progress calculations |
 | [web/src/cloud/](web/src/cloud/) | Optional Google sign-in, sync to Supabase |
-| [supabase/](supabase/) | Database migration and Edge Functions (`coach`, `delete-account`) |
+| [supabase/](supabase/) | Database migrations and Edge Functions (`coach`, `delete-account`, `feedback`) |
 
 Camera access needs `localhost` or HTTPS, so to test on a phone, use the deployed app or a tunnel.
 
@@ -94,6 +94,8 @@ One-time setup:
    npx supabase secrets set ANTHROPIC_API_KEY=sk-ant-...   # optional: COACH_DAILY_LIMIT=10 COACH_GLOBAL_DAILY_LIMIT=500 ALLOWED_ORIGINS=...
    npx supabase functions deploy coach
    npx supabase functions deploy delete-account
+   npx supabase secrets set FEEDBACK_WEBHOOK_URL=https://discord.com/api/webhooks/...   # optional: FEEDBACK_DAILY_LIMIT=5 FEEDBACK_GLOBAL_DAILY_LIMIT=300 FEEDBACK_IP_SALT=...
+   npx supabase functions deploy feedback
    ```
 
 5. Check row-level security on the live project: `node supabase/tests/run-linked.mjs` (see [Tests](#tests)).
@@ -101,6 +103,8 @@ One-time setup:
 7. Keep the free project awake: in the GitHub repo, add Actions variables `SUPABASE_URL` and `SUPABASE_ANON_KEY` for [.github/workflows/supabase-keepalive.yml](.github/workflows/supabase-keepalive.yml).
 
 The AI coach calls Claude Haiku with your key from the `coach` function. Each signed-in user gets `COACH_DAILY_LIMIT` reviews per 24 hours, and `COACH_GLOBAL_DAILY_LIMIT` caps the total across all users. At about $0.001 per review, the defaults cap spend near $0.50 a day.
+
+Feedback from the in-app form goes to the `feedback` table through the `feedback` function, signed in or not, at most `FEEDBACK_DAILY_LIMIT` entries per IP per day. Read it in the Supabase dashboard (Table Editor > `feedback`, which can export CSV) or with `select * from feedback order by created_at desc` in the SQL editor. With `FEEDBACK_WEBHOOK_URL` set to a Discord or Slack incoming webhook, each entry is also posted there.
 
 ### Deploy
 
