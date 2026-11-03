@@ -54,6 +54,8 @@ export function LiveSession({ exercise, body, model, speaker, recordVideo, lab, 
   const [finishing, setFinishing] = useState(false);
   const [hud, setHud] = useState<Hud>({ update: null, cue: null, lastRep: null, fps: 0 });
   const [showMetrics, setShowMetrics] = useState(false);
+  // Counts each time the user settles into the start position; a new value replays the green blink.
+  const [readyBlinks, setReadyBlinks] = useState(0);
   const config = useRef(createExercise(exercise, body).config).current;
   // "check" until we know whether the browser will prompt; "ask" shows the explainer first.
   const [camera, setCamera] = useState<"check" | "ask" | "go">("check");
@@ -117,7 +119,7 @@ export function LiveSession({ exercise, body, model, speaker, recordVideo, lab, 
       const ctx = canvasRef.current!.getContext("2d")!;
       const start = performance.now();
       if (recordVideo) recorderRef.current = SetRecorder.start(stream, start, RECORD_CAP_S);
-      let lastTs = -1, lastRep: RepResult | null = null, fps = 0, prev = start;
+      let lastTs = -1, lastRep: RepResult | null = null, fps = 0, prev = start, wasReady = false;
 
       const onFrame = () => {
         if (cancelled || !landmarker) return;
@@ -139,6 +141,9 @@ export function LiveSession({ exercise, body, model, speaker, recordVideo, lab, 
           sessionRef.current.add(update.completed);
           lastRep = update.completed;
         }
+        // Ready again after tracking was lost for long counts too: whoever came back has to settle again.
+        if (update.ready && !wasReady) setReadyBlinks((n) => n + 1);
+        wasReady = update.ready;
         cues.push(update.cues, t);
         if (recorderRef.current?.recording) posesRef.current.push(t, pose);
         drawPose(ctx, pose);
@@ -211,6 +216,7 @@ export function LiveSession({ exercise, body, model, speaker, recordVideo, lab, 
         <video ref={videoRef} playsInline muted />
         <canvas ref={canvasRef} />
       </div>
+      {readyBlinks > 0 && <div key={readyBlinks} className="ready-blink" aria-hidden />}
 
       <div className="hud-top">
         <div className="reps">
