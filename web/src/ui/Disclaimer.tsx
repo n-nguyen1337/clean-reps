@@ -32,10 +32,9 @@ export function CameraExplainer({ hint, onContinue, onCancel }: {
     <div className="overlay-msg">
       <div className="sheet" role="dialog" aria-labelledby="camera-title">
         <h2 id="camera-title">Camera access</h2>
-        <p className="lede">cleanReps uses your camera to track your joints and count reps.</p>
+        <p className="lede">cleanReps uses your camera to count reps. Video stays on this device.</p>
         <ul className="sheet-list">
-          <li>Video is processed on this device and is never uploaded.</li>
-          <li>Your browser will ask for permission next. Choose <b>Allow</b>.</li>
+          <li>Your browser will ask next. Choose <b>Allow</b>.</li>
           <li>{hint}</li>
         </ul>
         <div className="sheet-actions">

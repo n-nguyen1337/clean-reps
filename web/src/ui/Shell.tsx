@@ -3,6 +3,9 @@ import { useAccount } from "../cloud/account";
 import { routeHref, tabOf, type Route, type Tab } from "../route";
 import { Logo } from "./Logo";
 
+/** Beside every Start button: some people won't train on camera if they think the clip gets uploaded. */
+export const VIDEO_NOTE = "Your video stays on this device and is never uploaded.";
+
 const svg = (path: ReactNode) => (
   <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.6"
     strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{path}</svg>
@@ -64,7 +67,12 @@ export function Shell({ route, startLabel, onStart, children }: {
         </p>
         <div className="topbar-end">
           <StorageStatus />
-          {route.page !== "home" && <button className="primary" onClick={onStart}>{startLabel}</button>}
+          {route.page !== "home" && (
+            <>
+              <span className="topbar-note">{VIDEO_NOTE}</span>
+              <button className="primary" onClick={onStart}>{startLabel}</button>
+            </>
+          )}
         </div>
       </header>
       {children}

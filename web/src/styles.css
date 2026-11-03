@@ -179,6 +179,7 @@ select { font: inherit; color: inherit; background: var(--ground); border: 1px s
   .crumbs b { color: var(--text); font-weight: 500; }
   .topbar-end { display: flex; align-items: center; gap: var(--space-4); }
   .topbar-status { color: var(--faint); font-size: 12px; }
+  .topbar-note { color: var(--muted); font-size: 12px; }
   .app-header { display: none; }
   .shell .page { padding: 36px 32px 64px; }
   .shell .page.wide { max-width: calc(1100px + 64px); }
@@ -214,6 +215,7 @@ select { font: inherit; color: inherit; background: var(--ground); border: 1px s
 .next-foot { display: grid; gap: var(--space-3); }
 .settings-summary { display: flex; justify-content: space-between; align-items: center; gap: var(--space-3); min-height: var(--tap); color: var(--faint); text-decoration: none; font-size: 13px; }
 .settings-summary:hover .text-link { color: var(--text); }
+.start-note { margin: var(--space-2) 0 0; color: var(--muted); font-size: 13px; line-height: 18px; text-align: center; }
 .last-set { display: grid; gap: var(--space-4); align-content: start; }
 .last-set .panel-head { margin-bottom: 0; }
 .last-set .meta { font-size: 14px; line-height: 20px; color: var(--muted); }
@@ -234,7 +236,7 @@ select { font: inherit; color: inherit; background: var(--ground); border: 1px s
 
 /* Start stays in reach above the tab bar on phones that are tall enough. */
 @media (max-width: 1023.98px) and (min-height: 640px) {
-  .shell .page.has-start { padding-bottom: calc(var(--tabbar-h) + var(--safe-bottom) + 96px); }
+  .shell .page.has-start { padding-bottom: calc(var(--tabbar-h) + var(--safe-bottom) + 124px); }
   .start-bar { position: fixed; z-index: 4; left: 0; right: 0; bottom: calc(var(--tabbar-h) + var(--safe-bottom)); padding: var(--space-3) var(--space-4);
     background: var(--ground); border-top: 1px solid var(--rule); }
   .start-bar .big { display: flex; max-width: 608px; margin: 0 auto; }
