@@ -36,6 +36,7 @@ export function CameraExplainer({ hint, onContinue, onCancel }: {
         <ul className="sheet-list">
           <li>Your browser will ask next. Choose <b>Allow</b>.</li>
           <li>{hint}</li>
+          <li>Hold still in your start position. When the screen blinks green once, you're ready to start.</li>
         </ul>
         <div className="sheet-actions">
           <button className="ghost" onClick={onCancel}>Not now</button>
