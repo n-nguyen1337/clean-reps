@@ -446,11 +446,11 @@ select { font: inherit; color: inherit; background: var(--ground); border: 1px s
 .cue.warn { color: var(--warn); }
 .overlay-msg { position: absolute; inset: 0; display: grid; place-content: center; text-align: center; padding: 16px; background: rgba(0, 0, 0, 0.7); }
 .hud-bottom[hidden] { display: none; }
-/* Green edge that blinks when the user has settled at the start position, readable from a couple of metres back. */
+/* Green edge that blinks once when the user has settled at the start position, readable from a couple of metres back. */
 .ready-blink { position: absolute; inset: 0; pointer-events: none; opacity: 0;
   box-shadow: inset 0 0 0 10px var(--positive), inset 0 0 80px 20px var(--positive);
-  animation: ready-blink 1.2s ease-out both; }
-@keyframes ready-blink { 0%, 50% { opacity: 0; } 15%, 65% { opacity: 1; } 100% { opacity: 0; } }
+  animation: ready-blink 0.8s ease-out both; }
+@keyframes ready-blink { 0% { opacity: 0; } 25% { opacity: 1; } 100% { opacity: 0; } }
 .hint.floating { position: absolute; top: 120px; left: 16px; right: 16px; text-align: center; background: rgba(0, 0, 0, 0.7); border-radius: 12px; padding: 12px; margin: 0; color: var(--text); }
 
 /* Sheets: the first-visit disclaimer, the camera messages and the feedback survey. Floating, so they may carry a shadow. */
