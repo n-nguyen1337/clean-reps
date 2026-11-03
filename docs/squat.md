@@ -16,7 +16,7 @@ A counted rep is **clean** (and plays the chime) when none of these faults happe
 
 | Fault | What it means | Measured as | Fault when | Cue |
 |---|---|---|---|---|
-| `depth` | Didn't squat deep enough | Lowest hip height in the rep (hips over ankles ÷ leg length) | above 0.58 | "Squat a little deeper" |
+| `depth` | Didn't get the thighs to parallel | Lowest thigh angle in the rep (0° is parallel to the floor) | above 16° (see section 3) | "Squat a little deeper" |
 | `torso_lean` | Chest dropped forward too far | Torso angle from vertical (side view) | above 50° (40–65° depending on your build, see section 7) | "Chest up" |
 | `knee_valgus` | Knees caved inward | Knee spread ÷ ankle spread (front view) | below 0.8 for 4+ frames | "Push your knees out" |
 
@@ -57,7 +57,7 @@ Some faults can only be seen from certain angles, so the squat first works out h
 
 That is why the camera hint says: *"Side view for depth and torso lean; front view for knee tracking."*
 
-## 3. The five squat metrics
+## 3. The six squat metrics
 
 These are computed on every frame ([`squat.py`](../cleanreps/exercises/squat.py)).
 
@@ -66,10 +66,41 @@ These are computed on every frame ([`squat.py`](../cleanreps/exercises/squat.py)
 The angle at the knee between the thigh (knee → hip) and the shin (knee → ankle), computed in 3D world coordinates.
 
 - About **175°** when standing tall
-- About **90°** with thighs parallel to the floor
+- About **40–65°** with the thighs parallel to the floor. It would only be 90° with vertical shins, and in a real squat they tilt forward.
 - Smaller numbers mean a deeper squat
 
-This is the **primary metric**: it drives rep counting (section 4). It used to drive the depth check too, but from the front the model can't see the thighs moving toward or away from the camera, so a half squat and an RDL both read as 82–126°. Depth now comes from hip height.
+This is the **primary metric**: it drives rep counting (section 4). It used to drive the depth check too, but from the front the model can't see the thighs moving toward or away from the camera, so a half squat and an RDL both read as 82–126°. Depth now comes from the thigh angle.
+
+### Thigh angle
+
+The angle of the thigh against the floor, in 3D world coordinates:
+
+```
+thigh_angle = asin((knee y − hip y) / hip→knee length)
+```
+
+About **90°** standing, **0°** with the thigh parallel to the floor, negative below parallel. When the camera can see both legs, as in a front view, it uses the midpoints of the hips and the knees, which is steadier. From the side the far knee is hidden, so it uses the near leg.
+
+This is the depth check because parallel is a standard that doesn't come from these clips or change with your build: [the femur parallel to the floor](https://en.wikipedia.org/wiki/Squat_(exercise)). It's looser than the powerlifting rule, which puts the crease of the hip below the top of the knee.
+
+The limit is **16°** rather than 0° as an allowance for tracking error. The reading is steady from frame to frame (about 2°), but the pose models disagree: near parallel, Lite and Full differ by about 9° on the same rep of the same video, and in the side-on clip filmed at hip height, Lite reads about 9° higher than Full. At a stricter limit, the verdict depends on which model ran. This is how many of the 34 reps labeled deep would get "Squat a little deeper":
+
+| Limit | Lite | Full |
+|---|---|---|
+| 0° | 8 | 14 |
+| 5° | 8 | 3 |
+| 10° | 5 | 0 |
+| 16° | 0 | 0 |
+
+So 16° is the lowest limit where neither model cues a rep labeled deep. Lite is what sets it: with Full alone it could be 10°.
+
+| Movement | Lowest thigh angle, Lite | Lowest thigh angle, Full |
+|---|---|---|
+| Deep squats | −42° to +15° | −44° to +9° |
+| Shallow squats | +39° to +46° | +42° to +51° |
+| RDLs | +44° to +50° | +51° to +55° |
+
+No clip has a rep between +16° and +39°, so the clips don't yet test reps close to the limit. Those numbers come from one person, so record reps just above and just below parallel before tightening it.
 
 ### Hip angle
 
@@ -83,7 +114,7 @@ How high the hips are over the ankles, as a fraction of leg length, using the si
 hip_height = (ankle y − hip y) / (hip→knee length + knee→ankle length)
 ```
 
-About **0.97** standing, **0.2–0.5** at or below parallel. Unlike the knee angle, it's mostly a vertical distance, which the model measures well from the front and the side alike. From clips recorded at home (front and side, phone on a table or the floor):
+About **0.97** standing, **0.2–0.5** at or below parallel. It tells squats from movements that aren't squats. From clips recorded at home (front and side, phone on a table or the floor):
 
 | Movement | Lowest hip height |
 |---|---|
@@ -91,7 +122,7 @@ About **0.97** standing, **0.2–0.5** at or below parallel. Unlike the knee ang
 | Shallow squats | 0.65–0.70 |
 | RDLs and steps while walking | 0.78–0.88 |
 
-The two limits sit in the gaps: `depth` faults above **0.58**, and `hips_high` stops the rep from counting above **0.74**.
+`hips_high` stops the rep from counting above **0.74**, in the gap between shallow squats and RDLs. It's not independent of the knee angle: the hips stay roughly over the ankles in a squat, so hip height follows sin(knee angle ÷ 2) closely.
 
 ### Torso lean (side view only)
 
@@ -152,11 +183,11 @@ While a rep is in progress, the engine records the minimum and maximum of every 
 
 A rule with `aggregate: min` or `max` is checked against that metric's extreme over the whole rep.
 
-- **`depth`**: the *lowest* hip height in the rep must be ≤ 0.58.
+- **`depth`**: the *lowest* thigh angle in the rep must be ≤ 16°.
 - **`hip_hinge`**: the *lowest* hip angle in the rep must be ≤ 120°. This rule has `no_rep: true`, so when it fires the rep is reported as not counted (like a partial) instead of a counted rep with a fault.
 - **`hips_high`**: the *lowest* hip height in the rep must be ≤ 0.74. Also `no_rep: true`.
 
-Note the three levels of hip height. Above **0.74** the hips never really dropped, so it wasn't a squat and doesn't count. Between **0.58 and 0.74** it was a shallow squat: it counts, but you get "Squat a little deeper". Below **0.58** it's deep enough to be *clean*. This rewards real effort while still steering you toward parallel.
+Together these give three levels. If hip height stays above **0.74** the hips never really dropped, so it wasn't a squat and doesn't count. If the hips dropped but the thigh stayed more than **16°** above parallel, it was a shallow squat: it counts, but you get "Squat a little deeper". Within 16° of parallel or below, it's deep enough to be *clean*. This rewards real effort while still holding a clean rep to parallel.
 
 ### Live rules: checked on every frame during the rep
 
@@ -196,10 +227,10 @@ The answers shift the `torso_lean` limit:
 | **Torso average** | 45° | 50° | 58° |
 | **Torso short** | 52° | 57° | 65° |
 
-These adjustments are in the `proportions` section of [`squat.yaml`](../cleanreps/rules/squat.yaml). Each entry adds an amount to a rule's limits. For example, `femur: {long: {torso_lean: 8}}` raises the lean limit by 8° for long femurs, and the femur and torso amounts add together. Depth and knee tracking stay the same for every build. Depth is measured with the knee angle, which reaches about 90° at parallel whatever your proportions, and knees caving in is a fault for everyone.
+These adjustments are in the `proportions` section of [`squat.yaml`](../cleanreps/rules/squat.yaml). Each entry adds an amount to a rule's limits. For example, `femur: {long: {torso_lean: 8}}` raises the lean limit by 8° for long femurs, and the femur and torso amounts add together. Depth and knee tracking stay the same for every build. Depth is the thigh's angle to the floor, so parallel means the same thing whatever your proportions, and knees caving in is a fault for everyone.
 
 ## 8. Tuning
 
-All the numbers above live in [`squat.yaml`](../cleanreps/rules/squat.yaml), so you can tune them without changing code. The web engine imports the same file, so one edit changes both apps. For example, raise `depth.max` to 110 for a beginner-friendly mode, or lower `torso_lean.max` for high-bar or front-squat coaching. The config loader rejects a `bottom_threshold` that is not below `top_threshold`, and rules that refer to metrics the squat doesn't compute.
+All the numbers above live in [`squat.yaml`](../cleanreps/rules/squat.yaml), so you can tune them without changing code. The web engine imports the same file, so one edit changes both apps. For example, raise `depth.max` to 25 for a beginner-friendly mode, or lower `torso_lean.max` for high-bar or front-squat coaching. The config loader rejects a `bottom_threshold` that is not below `top_threshold`, and rules that refer to metrics the squat doesn't compute.
 
 When you change a threshold, run the replay tests ([`tests/test_replay_clips.py`](../tests/test_replay_clips.py)) and the web parity test ([`web/src/engine/__tests__/parity.test.ts`](../web/src/engine/__tests__/parity.test.ts)) to keep the Python and TypeScript engines in agreement.

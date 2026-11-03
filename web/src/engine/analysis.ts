@@ -16,6 +16,7 @@ export const METRIC_INFO: Record<string, MetricInfo> = {
   torso_lean: { label: "Torso lean", unit: "°", hint: "Film from the side to check it." },
   knee_ratio: { label: "Knee width ÷ ankle width", unit: "", hint: "Film from the front to check it." },
   hip_height: { label: "Hip height ÷ leg length", unit: "" },
+  thigh_angle: { label: "Thigh above parallel", unit: "°" },
   elbow_angle: { label: "Elbow angle", unit: "°" },
   hip_offset: { label: "Hip offset", unit: "", hint: "Film from the side to check it." },
 };

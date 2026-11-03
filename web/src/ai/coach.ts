@@ -17,7 +17,8 @@ export interface CoachReport {
 }
 
 const METRIC_NOTES: Record<string, string> = {
-  knee_angle: "hip-knee-ankle angle in degrees; about 175 standing, about 90 with thighs parallel to the floor",
+  knee_angle: "hip-knee-ankle angle in degrees; about 175 standing, about 40-65 with thighs parallel to the floor because the shins tilt forward",
+  thigh_angle: "thigh angle above level in degrees; about 90 standing, 0 with thighs parallel to the floor, negative below parallel",
   hip_angle: "shoulder-hip-knee angle in degrees",
   torso_lean: "torso angle from vertical in degrees, measured from a side view only",
   knee_ratio: "knee spread divided by ankle spread, front view only; below about 0.8 means knees caving in",

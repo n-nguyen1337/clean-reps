@@ -222,7 +222,7 @@ export function Summary({ record, previous, playback, progress, back, children }
                           <td className="num">{row.upS.toFixed(1)} s</td>
                           {analysis.rules.map((r) => {
                             const v = row.values[r.rule.id];
-                            return <td key={r.rule.id} className="num">{v === null ? <span className="dash">–</span> : r.info.unit === "°" ? `${v.toFixed(0)}°` : v.toFixed(2)}</td>;
+                            return <td key={r.rule.id} className="num">{v === null ? <span className="dash">–</span> : r.info.unit === "°" ? `${Math.round(v)}°` : v.toFixed(2)}</td>;
                           })}
                           <td>{row.rep.faults.length ? row.rep.faults.map(label).join(", ") : "Clean"}</td>
                         </tr>
