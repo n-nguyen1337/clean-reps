@@ -33,6 +33,18 @@ def angle_from_vertical(a: np.ndarray, b: np.ndarray) -> float:
     return math.degrees(math.atan2(abs(dx), -dy))
 
 
+def elevation(a: np.ndarray, b: np.ndarray) -> float:
+    """Angle in degrees of the vector a->b above the horizontal, with y pointing down.
+
+    90 means b is directly above a, 0 level with it, negative below it.
+    """
+    d = np.asarray(b, float) - np.asarray(a, float)
+    length = float(np.linalg.norm(d))
+    if length < 1e-9:
+        return float("nan")
+    return math.degrees(math.asin(np.clip(-d[1] / length, -1.0, 1.0)))
+
+
 def line_offset(p: np.ndarray, a: np.ndarray, b: np.ndarray) -> float:
     """Distance of point p from segment line a-b, as a fraction of |ab|.
 

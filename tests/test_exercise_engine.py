@@ -6,6 +6,8 @@ import pytest
 from cleanreps.exercises import EXERCISES, Body, Cue, Exercise, ExerciseConfig, Phase, Rule
 from cleanreps.exercises.base import quantile
 from cleanreps.feedback import CueManager
+from cleanreps.landmarks import LEFT, RIGHT
+from cleanreps.pose import PoseFrame
 from cleanreps.session import Session
 
 FPS = 30
@@ -246,7 +248,7 @@ def test_bundled_configs_load(key):
 
 def lean_limit(body: Body | None) -> float:
     rules = {r.id: r for r in EXERCISES["squat"](body=body).config.rules}
-    assert rules["depth"].max == 0.58  # proportions only move the rules they name
+    assert rules["depth"].max == 16  # proportions only move the rules they name
     return rules["torso_lean"].max
 
 
@@ -255,6 +257,39 @@ def test_squat_lean_limit_follows_proportions():
     assert lean_limit(Body(femur="long", torso="short")) == 65
     assert lean_limit(Body(femur="short", torso="long")) == 40
     assert lean_limit(Body(femur="long", torso="long")) == 53
+
+
+def squat_pose(near: float, far: float | None = None, near_visibility: float = 1.0, far_visibility: float = 1.0) -> PoseFrame:
+    """Hips at the origin, each thigh at this angle above level, shins straight down. Left is the near leg."""
+    world, visibility = np.zeros((33, 3)), np.ones(33)
+    for side, x, deg, vis in ((LEFT, 0.1, near, near_visibility), (RIGHT, -0.1, near if far is None else far, far_visibility)):
+        thigh = np.radians(deg)
+        world[side.shoulder] = [x, -0.5, 0]
+        world[side.hip] = [x, 0, 0]
+        world[side.knee] = [x, 0.4 * np.sin(thigh), -0.4 * np.cos(thigh)]
+        world[side.ankle] = world[side.knee] + [0, 0.4, 0]
+        visibility[[side.hip, side.knee, side.ankle]] = vis
+    return PoseFrame(world * 1000, world, visibility, 0)
+
+
+@pytest.mark.parametrize("thigh", [90, 16, 0, -30])
+def test_squat_thigh_angle_is_measured_against_the_floor(thigh):
+    assert EXERCISES["squat"]().compute_metrics(squat_pose(thigh))["thigh_angle"] == pytest.approx(thigh)
+
+
+def test_squat_thigh_angle_averages_the_legs_the_camera_can_see():
+    squat = EXERCISES["squat"]()
+    assert squat.compute_metrics(squat_pose(10, -10))["thigh_angle"] == pytest.approx(0)
+    assert squat.compute_metrics(squat_pose(10, -30, far_visibility=0.3))["thigh_angle"] == pytest.approx(10)
+    assert squat.compute_metrics(squat_pose(10, near_visibility=0.3, far_visibility=0.3))["thigh_angle"] is None
+
+
+@pytest.mark.parametrize("low, faults", [(-10, []), (15, []), (17, ["depth"]), (25, ["depth"])])
+def test_squat_rep_is_clean_only_within_the_limit_of_parallel(low, faults):
+    squat = EXERCISES["squat"]()
+    thighs = [85] * 40 + list(np.linspace(85, low, 30)) + list(np.linspace(low, 85, 30)) + [85] * 5
+    reps = [u.completed for i, a in enumerate(thighs) if (u := squat.update(squat_pose(a), i / FPS)).completed]
+    assert len(reps) == 1 and reps[0].counted and reps[0].faults == faults
 
 
 def test_proportions_shift_both_limits():

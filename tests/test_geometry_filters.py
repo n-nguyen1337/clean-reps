@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 
 from cleanreps.filters import OneEuroFilter
-from cleanreps.geometry import angle, angle_from_vertical, line_offset
+from cleanreps.geometry import angle, angle_from_vertical, elevation, line_offset
 
 
 def test_angle_right_angle_2d_and_3d():
@@ -24,6 +24,15 @@ def test_angle_from_vertical_image_coords():
     assert angle_from_vertical(hip, [200, 200]) == pytest.approx(90)   # horizontal
     assert angle_from_vertical(hip, [100, 300]) == pytest.approx(180)  # straight down
     assert angle_from_vertical(hip, [0, 100]) == pytest.approx(45)     # leaning either way
+
+
+def test_elevation_with_y_pointing_down():
+    knee = np.array([0, 40, 0])
+    assert elevation(knee, [0, 0, 0]) == pytest.approx(90)     # directly above
+    assert elevation(knee, [0, 40, 40]) == pytest.approx(0)    # level, whichever way it points
+    assert elevation(knee, [40, 40, 0]) == pytest.approx(0)
+    assert elevation(knee, [0, 80, 40]) == pytest.approx(-45)  # below
+    assert np.isnan(elevation(knee, knee))
 
 
 @pytest.mark.parametrize("facing", [1, -1])

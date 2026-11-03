@@ -5,6 +5,8 @@ import { describe, expect, it } from "vitest";
 import { Exercise, forBody, isClean, parseConfig, quantile, type Body, type ExerciseConfig, type ExerciseUpdate, type Metrics, type Rule } from "../exercise";
 import { EXERCISE_KEYS, createExercise } from "../exercises";
 import { CueManager } from "../feedback";
+import { elevation } from "../geometry";
+import { LEFT, NUM_LANDMARKS, PoseFrame, RIGHT } from "../pose";
 import { Session } from "../session";
 
 const FPS = 30;
@@ -217,10 +219,10 @@ describe("body proportions", () => {
   };
 
   it("shifts the squat lean limit, leaving other rules alone", () => {
-    expect(limits("average", "average")).toEqual([50, 0.58]);
-    expect(limits("long", "short")).toEqual([65, 0.58]);
-    expect(limits("short", "long")).toEqual([40, 0.58]);
-    expect(limits("long", "long")).toEqual([53, 0.58]);
+    expect(limits("average", "average")).toEqual([50, 16]);
+    expect(limits("long", "short")).toEqual([65, 16]);
+    expect(limits("short", "long")).toEqual([40, 16]);
+    expect(limits("long", "long")).toEqual([53, 16]);
   });
 
   it("shifts both limits of a rule", () => {
@@ -235,6 +237,52 @@ describe("body proportions", () => {
       name: "X", primary_metric: "a", top_threshold: 160, bottom_threshold: 100,
       proportions: { femur: { long: { nope: 5 } } },
     })).toThrow(/unknown rules/);
+  });
+});
+
+describe("squat thigh angle", () => {
+  /** Hips at the origin, each thigh at this angle above level, shins straight down. Left is the near leg. */
+  function squatPose(near: number, far = near, nearVisibility = 1, farVisibility = 1): PoseFrame {
+    const world = Array.from({ length: NUM_LANDMARKS }, () => [0, 0, 0]);
+    const visibility = Array.from({ length: NUM_LANDMARKS }, () => 1);
+    for (const [side, x, deg, vis] of [[LEFT, 0.1, near, nearVisibility], [RIGHT, -0.1, far, farVisibility]] as const) {
+      const thigh = (deg * Math.PI) / 180;
+      const knee = [x, 0.4 * Math.sin(thigh), -0.4 * Math.cos(thigh)];
+      world[side.shoulder] = [x, -0.5, 0];
+      world[side.hip] = [x, 0, 0];
+      world[side.knee] = knee;
+      world[side.ankle] = [knee[0], knee[1] + 0.4, knee[2]];
+      for (const i of [side.hip, side.knee, side.ankle]) visibility[i] = vis;
+    }
+    return PoseFrame.fromRows(world.map((p) => p.map((v) => v * 1000)), world, visibility, 0);
+  }
+  const thighAngle = (pose: PoseFrame) => createExercise("squat").update(pose, 0).metrics.thigh_angle;
+
+  it("measures elevation with y pointing down", () => {
+    const knee = [0, 40, 0];
+    expect(elevation(knee, [0, 0, 0])).toBeCloseTo(90); // directly above
+    expect(elevation(knee, [0, 40, 40])).toBeCloseTo(0); // level, whichever way it points
+    expect(elevation(knee, [40, 40, 0])).toBeCloseTo(0);
+    expect(elevation(knee, [0, 80, 40])).toBeCloseTo(-45); // below
+    expect(elevation(knee, knee)).toBeNaN();
+  });
+
+  it.each([90, 16, 0, -30])("is measured against the floor: %d degrees", (deg) => {
+    expect(thighAngle(squatPose(deg))).toBeCloseTo(deg);
+  });
+
+  it("averages the legs the camera can see", () => {
+    expect(thighAngle(squatPose(10, -10))).toBeCloseTo(0);
+    expect(thighAngle(squatPose(10, -30, 1, 0.3))).toBeCloseTo(10);
+    expect(thighAngle(squatPose(10, 10, 0.3, 0.3))).toBeNull();
+  });
+
+  it.each([[-10, []], [15, []], [17, ["depth"]], [25, ["depth"]]])("a rep down to %d degrees has faults %j", (low, faults) => {
+    const ramp = (from: number, to: number) => Array.from({ length: 30 }, (_, i) => from + ((to - from) * i) / 29);
+    const thighs = [...full(40, 85), ...ramp(85, low as number), ...ramp(low as number, 85), ...full(5, 85)];
+    const squat = createExercise("squat");
+    const reps = thighs.flatMap((a, i) => squat.update(squatPose(a), i / FPS).completed ?? []);
+    expect(reps.map((r) => [r.counted, r.faults])).toEqual([[true, faults]]);
   });
 });
 

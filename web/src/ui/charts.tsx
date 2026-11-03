@@ -41,7 +41,7 @@ function niceDomain(values: number[], count = 4, floorZero = false): { lo: numbe
 }
 
 const fmt = (v: number, unit: string) =>
-  unit === "°" ? `${v.toFixed(0)}°` : unit === "s" ? `${v.toFixed(1)} s` : unit === "%" ? `${v.toFixed(0)}%`
+  unit === "°" ? `${Math.round(v)}°` : unit === "s" ? `${v.toFixed(1)} s` : unit === "%" ? `${v.toFixed(0)}%`
     : unit === "reps" ? v.toFixed(0) : v.toFixed(2);
 
 export const shortDate = (d: Date) => d.toLocaleDateString(undefined, { month: "short", day: "numeric" });

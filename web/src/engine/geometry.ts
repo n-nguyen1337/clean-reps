@@ -37,6 +37,17 @@ export function angleFromVertical(a: Vec, b: Vec): number {
   return rad2deg(Math.atan2(Math.abs(dx), -dy));
 }
 
+/** Angle in degrees of the vector a->b above the horizontal, with y pointing down.
+ *  90 means b is directly above a, 0 level with it, negative below it. */
+export function elevation(a: Vec, b: Vec): number {
+  const length = distance(a, b);
+  if (length < 1e-9) return NaN;
+  return rad2deg(Math.asin(Math.min(1, Math.max(-1, (a[1] - b[1]) / length))));
+}
+
+export const midpoint = (a: Vec, b: Vec): number[] =>
+  Array.from({ length: Math.min(a.length, b.length) }, (_, i) => (a[i] + b[i]) / 2);
+
 /** Distance of point p from line a-b, as a fraction of |ab|.
  *  Positive when p sits below the line in the image (y down), negative above. */
 export function lineOffset(p: Vec, a: Vec, b: Vec): number {
