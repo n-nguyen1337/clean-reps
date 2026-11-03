@@ -8,6 +8,7 @@ import type { Settings } from "../store/settings";
 import { LevelCard } from "./Achievements";
 import { Logo } from "./Logo";
 import { RepStrip } from "./RepStrip";
+import { VIDEO_NOTE } from "./Shell";
 
 const STEPS = [
   { title: "Pick an exercise", text: "Squats or push-ups." },
@@ -116,7 +117,7 @@ export function Home({ sets, prog, configs, exercise, onExercise, settings, onSt
           <p className="sub">
             {returning
               ? `${sets.length} ${sets.length === 1 ? "set" : "sets"} so far, saved on this device.`
-              : "Prop up your phone and train. Pose tracking runs on this device, and video never leaves it."}
+              : "Prop up your phone and train."}
           </p>
         </div>
       </div>
@@ -143,6 +144,7 @@ export function Home({ sets, prog, configs, exercise, onExercise, settings, onSt
             </a>
             <div className="start-bar">
               <button className="primary big" onClick={onStart}>Start {configs[exercise].name.toLowerCase()}</button>
+              <p className="start-note">{VIDEO_NOTE}</p>
             </div>
           </div>
         </section>
