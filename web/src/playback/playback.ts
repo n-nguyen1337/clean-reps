@@ -4,7 +4,7 @@
 // unless named as video times.
 
 import type { RepRow } from "../engine/analysis";
-import { NUM_LANDMARKS, type PoseFrame } from "../engine/pose";
+import { NUM_LANDMARKS, type DrawablePose } from "../engine/pose";
 import type { TracePoint } from "../engine/session";
 
 /** Recording stops after this long; the analysis keeps running. */
@@ -44,17 +44,14 @@ export function pickMimeType(isSupported: (type: string) => boolean): string | n
   return MIME_TYPES.find(isSupported) ?? null;
 }
 
-const STRIDE = NUM_LANDMARKS * 3; // x, y, visibility
+const STRIDE = NUM_LANDMARKS * 3; // x, y, opacity
 
-/** Read-only pose for drawing: image coordinates and visibility only. */
-export class PoseView {
+/** Read-only pose for drawing. */
+export class PoseView implements DrawablePose {
   constructor(private readonly data: Float32Array) {}
 
   img(i: number): Float32Array { return this.data.subarray(i * 3, i * 3 + 2); }
-
-  visible(...ids: number[]): boolean {
-    return ids.every((i) => this.data[i * 3 + 2] >= 0.5);
-  }
+  opacity(i: number): number { return this.data[i * 3 + 2]; }
 }
 
 /** Every processed frame's pose, packed into growable typed arrays (about 12 KB a second at 30 fps). */
@@ -64,7 +61,7 @@ export class PoseTrack {
   length = 0;
 
   /** Add a frame at set time `t`. A null pose is kept as a gap, so nothing is drawn for it. */
-  push(t: number, pose: PoseFrame | null): void {
+  push(t: number, pose: DrawablePose | null): void {
     if (this.length === this.times.length) {
       const times = new Float64Array(this.times.length * 2);
       const data = new Float32Array(this.data.length * 2);
@@ -75,8 +72,8 @@ export class PoseTrack {
     const o = this.length * STRIDE;
     if (pose) {
       for (let i = 0; i < NUM_LANDMARKS; i++) {
-        const [x, y] = pose.img(i);
-        this.data.set([x, y, pose.visibility[i]], o + i * 3);
+        const [x, y] = pose.img(i) as Float64Array;
+        this.data.set([x, y, pose.opacity(i)], o + i * 3);
       }
     } else {
       this.data.fill(0, o, o + STRIDE);
@@ -104,9 +101,10 @@ export class PoseTrack {
     const after = this.data.subarray((found + 1) * STRIDE, (found + 2) * STRIDE);
     const blended = before.slice();
     for (let i = 0; i < NUM_LANDMARKS; i++) {
-      if (before[i * 3 + 2] < 0.5 || after[i * 3 + 2] < 0.5) continue; // a joint coming or going has nothing to blend with
+      if (before[i * 3 + 2] === 0 || after[i * 3 + 2] === 0) continue; // a missing pose has no position to blend with
       blended[i * 3] += f * (after[i * 3] - before[i * 3]);
       blended[i * 3 + 1] += f * (after[i * 3 + 1] - before[i * 3 + 1]);
+      blended[i * 3 + 2] += f * (after[i * 3 + 2] - before[i * 3 + 2]);
     }
     return new PoseView(blended);
   }

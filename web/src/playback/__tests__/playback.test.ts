@@ -1,13 +1,12 @@
 import { describe, expect, it } from "vitest";
 import type { RepRow } from "../../engine/analysis";
-import { NUM_LANDMARKS, PoseFrame } from "../../engine/pose";
+import type { DrawablePose } from "../../engine/pose";
 import { alignOffset, pickMimeType, PoseTrack, repAt, traceValueAt } from "../playback";
 
-const pose = (x: number, visibility = 0.9) => PoseFrame.fromRows(
-  Array.from({ length: NUM_LANDMARKS }, (_, i) => [x + i, 2 * x, 0]),
-  Array.from({ length: NUM_LANDMARKS }, () => [0, 0, 0]),
-  Array(NUM_LANDMARKS).fill(visibility), 0,
-);
+const pose = (x: number, opacity = 0.9): DrawablePose => ({
+  img: (i) => [x + i, 2 * x],
+  opacity: () => opacity,
+});
 
 describe("pickMimeType", () => {
   it("prefers MP4", () => {
@@ -32,7 +31,7 @@ describe("PoseTrack", () => {
     const p = track.at(1.1)!;
     expect(Array.from(p.img(0))).toEqual([20, 40]);
     expect(Array.from(p.img(5))).toEqual([25, 40]);
-    expect(p.visible(0, 5)).toBe(true);
+    expect(p.opacity(5)).toBeCloseTo(0.9, 5);
   });
 
   it("blends between neighbouring frames", () => {
@@ -42,7 +41,14 @@ describe("PoseTrack", () => {
     const p = close.at(1.025)!;
     expect(p.img(0)[0]).toBeCloseTo(15, 3);
     expect(p.img(0)[1]).toBeCloseTo(30, 3);
-    expect(p.visible(0)).toBe(true);
+    expect(p.opacity(0)).toBeCloseTo(0.9, 5);
+  });
+
+  it("blends a fading joint's opacity too", () => {
+    const fading = new PoseTrack();
+    fading.push(1.0, pose(10, 1));
+    fading.push(1.05, pose(20, 0.5));
+    expect(fading.at(1.025)!.opacity(0)).toBeCloseTo(0.75, 3);
   });
 
   it("holds the previous frame when the next is a missing pose", () => {
@@ -59,13 +65,6 @@ describe("PoseTrack", () => {
     expect(Array.from(sparse.at(1.1)!.img(0))).toEqual([10, 20]);
   });
 
-  it("holds a joint that's hidden on the next frame", () => {
-    const hiding = new PoseTrack();
-    hiding.push(1.0, pose(10));
-    hiding.push(1.05, pose(20, 0));
-    expect(Array.from(hiding.at(1.025)!.img(0))).toEqual([10, 20]);
-    expect(hiding.at(1.025)!.visible(0)).toBe(true);
-  });
 
   it("holds the last frame past the end", () => {
     const close = new PoseTrack();
@@ -80,12 +79,12 @@ describe("PoseTrack", () => {
     expect(track.at(5)).toBeNull();
   });
 
-  it("keeps a missing pose as a gap with nothing visible", () => {
-    expect(track.at(1.25)!.visible(11)).toBe(false);
+  it("keeps a missing pose as a gap with nothing to draw", () => {
+    expect(track.at(1.25)!.opacity(11)).toBe(0);
   });
 
-  it("keeps visibility", () => {
-    expect(track.at(2.0)!.visible(11)).toBe(false);
+  it("keeps opacity", () => {
+    expect(track.at(2.0)!.opacity(11)).toBeCloseTo(0.2, 5);
   });
 
   it("grows past its initial capacity", () => {

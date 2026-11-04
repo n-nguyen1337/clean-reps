@@ -66,60 +66,85 @@ def test_one_euro_tracks_step_eventually():
 
 
 # Shared with the TS port's test in web/src/engine/__tests__/skeleton.test.ts: 3 joints at 30 fps,
-# joint 1 thrown for one frame and then really moved, joint 2 hovering at the confidence limit.
+# joint 1 thrown for one frame and then really moved, joint 2 fading in and out.
 SKELETON_INPUT = [
-    ([[100, 200], [300, 400], [500, 600]], [.9, .9, .45]),
-    ([[102, 203], [300, 401], [500, 600]], [.9, .9, .55]),
-    ([[106, 209], [420, 401], [501, 601]], [.9, .9, .45]),
-    ([[112, 218], [300, 402], [501, 600]], [.9, .9, .35]),
-    ([[120, 230], [301, 402], [500, 601]], [.9, .9, .25]),
-    ([[130, 245], [301, 403], [500, 600]], [.9, .9, .45]),
-    ([[130, 245], [450, 403], [500, 600]], [.9, .9, .55]),
-    ([[130, 245], [450, 403], [500, 600]], [.9, .9, .55]),
+    ([[100, 200], [300, 400], [500, 600]], [.9, .9, .2]),
+    ([[102, 203], [300, 401], [500, 600]], [.9, .9, .3]),
+    ([[106, 209], [420, 401], [501, 601]], [.9, .9, .4]),
+    ([[112, 218], [300, 402], [501, 600]], [.9, .9, .5]),
+    ([[120, 230], [301, 402], [500, 601]], [.9, .9, .6]),
+    ([[130, 245], [301, 403], [500, 600]], [.9, .9, .5]),
+    ([[140, 260], [450, 403], [500, 600]], [.9, .9, .4]),
+    ([[150, 275], [450, 403], [500, 600]], [.9, .9, .3]),
+    ([[160, 290], [450, 403], [500, 600]], [.9, .9, .2]),
+    ([[170, 305], [450, 403], [500, 600]], [.9, .9, .1]),
 ]
 SKELETON_OUTPUT = [
-    ([100.0, 200.0, 300.0, 400.0, 500.0, 600.0], [1, 1, 0]),
-    ([100.586052, 200.879078, 300.0, 400.254834, 500.0, 600.0], [1, 1, 1]),
-    ([102.744195, 204.116292, 300.0, 400.257739, 500.261179, 600.261179], [1, 1, 1]),
-    ([107.537867, 211.3068, 300.0, 400.735351, 500.458248, 600.195614], [1, 1, 1]),
-    ([115.310405, 222.965608, 300.284713, 401.10585, 500.344411, 600.405122], [1, 1, 0]),
-    ([125.753785, 238.630678, 300.505788, 401.692477, 500.261488, 600.30884], [1, 1, 0]),
-    ([130.095934, 245.143901, 300.522905, 401.73947, 500.198056, 600.234195], [1, 1, 1]),
-    ([131.604187, 247.40628, 422.794704, 402.774961, 500.149193, 600.176532], [1, 1, 1]),
+    None,
+    None,
+    ([100.0, 200.0, 300.0, 400.0, 500.0, 600.0], [1.0, 1.0, 0.0]),
+    ([102.187724, 203.281586, 300.0, 400.341894, 500.113965, 600.0], [1.0, 1.0, 0.0]),
+    ([106.922887, 210.38433, 300.051749, 400.751897, 500.292353, 600.134656], [1.0, 1.0, 0.147609]),
+    ([112.957739, 219.436609, 300.190003, 401.255591, 500.370055, 600.193309], [1.0, 1.0, 0.399251]),
+    ([120.719935, 231.079902, 300.424038, 401.730194, 500.355221, 600.204989], [1.0, 1.0, 0.576603]),
+    ([129.811022, 244.716532, 316.922797, 402.637965, 500.273242, 600.173462], [1.0, 1.0, 0.701597]),
+    ([139.573036, 259.359554, 350.136293, 402.884945, 500.203152, 600.128967], [1.0, 1.0, 0.642082]),
+    ([149.563063, 274.344595, 399.54435, 402.998192, 500.15505, 600.098431], [1.0, 1.0, 0.452528]),
 ]
+ONE_JOINT = np.array([1.0])
+
+
+def joint_at(*points):
+    """Run one joint through the filter at 30 fps. Returns its x per output frame."""
+    f = SkeletonFilter()
+    results = [f(np.array([[x, 100.0]]), ONE_JOINT, i / 30) for i, x in enumerate(points)]
+    return [r[0][0, 0] for r in results if r is not None]
 
 
 class TestSkeletonFilter:
     def test_matches_the_values_shared_with_the_web_port(self):
         f = SkeletonFilter()
-        for i, ((xy, vis), (want_xy, want_shown)) in enumerate(zip(SKELETON_INPUT, SKELETON_OUTPUT)):
-            out, shown = f(np.array(xy, float), np.array(vis), i / 30)
-            assert out.ravel() == pytest.approx(want_xy, abs=1e-5)
-            assert shown.astype(int).tolist() == want_shown
+        for i, ((xy, vis), want) in enumerate(zip(SKELETON_INPUT, SKELETON_OUTPUT)):
+            out = f(np.array(xy, float), np.array(vis), i / 30)
+            if want is None:
+                assert out is None
+                continue
+            assert out[0].ravel() == pytest.approx(want[0], abs=1e-5)
+            assert out[1] == pytest.approx(want[1], abs=1e-5)
+            assert out[2] == pytest.approx((i - f.ahead) / 30)
 
-    def test_holds_a_one_frame_throw(self):
-        f = SkeletonFilter()
-        vis = np.array([1.0])
-        f(np.array([[100.0, 100.0]]), vis, 0.0)
-        thrown, _ = f(np.array([[400.0, 100.0]]), vis, 1 / 30)
-        back, _ = f(np.array([[100.0, 100.0]]), vis, 2 / 30)
-        assert thrown[0, 0] == pytest.approx(100)
-        assert back[0, 0] == pytest.approx(100)
+    def test_doesnt_trail_steady_movement(self):
+        out = joint_at(*(100.0 + 10 * i for i in range(20)))
+        assert out[-1] == pytest.approx(100.0 + 10 * 17, abs=1)  # the frame two before the last
+
+    def test_settles_a_still_joint_that_shakes(self):
+        out = joint_at(*(100.0 + (-1) ** i for i in range(40)))
+        assert max(out[20:]) - min(out[20:]) < 0.2
+
+    def test_ignores_a_large_one_frame_throw(self):
+        out = joint_at(100, 100, 100, 100, 400, 100, 100, 100, 100)
+        assert out == pytest.approx([100] * len(out))
+
+    def test_shrugs_off_a_smaller_one_frame_throw(self):
+        out = joint_at(100, 100, 100, 100, 100, 140, 100, 100, 100, 100, 100)
+        assert max(out) < 106
 
     def test_accepts_a_jump_that_stays(self):
-        f = SkeletonFilter()
-        vis = np.array([1.0])
-        f(np.array([[100.0, 100.0]]), vis, 0.0)
-        f(np.array([[400.0, 100.0]]), vis, 1 / 30)
-        moved, _ = f(np.array([[400.0, 100.0]]), vis, 2 / 30)
-        assert moved[0, 0] > 300
+        out = joint_at(*([100.0] * 5 + [400.0] * 8))
+        assert out[-1] > 390
 
     def test_a_stall_widens_the_jump_limit(self):
+        f = SkeletonFilter(ahead=0)
+        f(np.array([[100.0, 100.0]]), ONE_JOINT, 0.0)
+        out = f(np.array([[250.0, 100.0]]), ONE_JOINT, 0.25)
+        assert out[0][0, 0] == pytest.approx(250)
+
+    def test_doesnt_smooth_across_a_stall(self):
         f = SkeletonFilter()
-        vis = np.array([1.0])
-        f(np.array([[100.0, 100.0]]), vis, 0.0)
-        out, _ = f(np.array([[250.0, 100.0]]), vis, 0.25)
-        assert out[0, 0] > 150
+        times = [0, 1 / 30, 2 / 30, 0.5, 0.5 + 1 / 30, 0.5 + 2 / 30]
+        results = [f(np.array([[x, 100.0]]), ONE_JOINT, t) for x, t in zip((100, 100, 100, 300, 300, 300), times)]
+        assert results[4][0][0, 0] == pytest.approx(100)  # the last frame before the stall
+        assert results[5][0][0, 0] == pytest.approx(300)  # the first after it
 
     def test_settings_mean_the_same_at_any_resolution(self):
         def run(long_side: float) -> np.ndarray:
@@ -127,15 +152,31 @@ class TestSkeletonFilter:
             scale = long_side / 1280
             out = None
             for i, (xy, vis) in enumerate(SKELETON_INPUT):
-                out, _ = f(np.array(xy, float) * scale, np.array(vis), i / 30, long_side)
-            return out / scale
+                out = f(np.array(xy, float) * scale, np.array(vis), i / 30, long_side)
+            return out[0] / scale
 
         assert run(640.0) == pytest.approx(run(1280.0))
 
+    def test_a_frame_with_no_pose_comes_out_in_turn(self):
+        f = SkeletonFilter()
+        at = lambda x, t: f(np.array([[x, 100.0]]), ONE_JOINT, t)
+        assert at(100.0, 0.0) is None
+        assert f(None, None, 1 / 30) is None
+        assert at(110.0, 2 / 30)[0][0, 0] == pytest.approx(100)
+        assert at(120.0, 3 / 30)[:2] == (None, None)  # the missing frame, in its place
+        assert at(130.0, 4 / 30)[0][0, 0] == pytest.approx(110)  # nothing from before the gap
+
+    def test_a_joint_fades_rather_than_blinks(self):
+        f = SkeletonFilter()
+        seen = [r[1][0] for i, v in enumerate([1.0] * 10 + [0.0] * 40)
+                if (r := f(np.array([[100.0, 100.0]]), np.array([v]), i / 30)) is not None]
+        steps = np.abs(np.diff(seen))
+        assert seen[0] == 1 and seen[-1] < 0.01
+        assert steps.max() < 0.3
+
     def test_reset_starts_over(self):
         f = SkeletonFilter()
-        vis = np.array([1.0])
-        f(np.array([[100.0, 100.0]]), vis, 0.0)
+        for i in range(5):
+            f(np.array([[100.0, 100.0]]), ONE_JOINT, i / 30)
         f.reset()
-        out, _ = f(np.array([[400.0, 100.0]]), vis, 1 / 30)
-        assert out[0, 0] == pytest.approx(400)
+        assert f(np.array([[400.0, 100.0]]), ONE_JOINT, 6 / 30) is None

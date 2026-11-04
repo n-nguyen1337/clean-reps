@@ -2,7 +2,7 @@
 
     python tools/tune_skeleton.py                                 # every clip in tests/clips
     python tools/tune_skeleton.py ~/Downloads/20261104-*.lab.json # phone exports
-    python tools/tune_skeleton.py --beta 0.02 --lead 0.75         # try other settings
+    python tools/tune_skeleton.py --beta 0.1 --min-cutoff 0.5     # try other settings
     python tools/tune_skeleton.py --sweep --pick 0,1,2            # compare a grid on some clips
     python tools/tune_skeleton.py clip.lab.json --timing          # how the device kept up
     python tools/tune_skeleton.py clip.lab.json --skew            # pose time stamps vs the video
@@ -49,7 +49,7 @@ MOVING = 100.0  # px/s
 STILL = 25.0
 HOP = 12.0
 REFERENCE_HZ = 6.0  # squats stay well below this
-SETTINGS = ("min_cutoff", "beta", "d_cutoff", "lead", "lead_speed", "jump")
+SETTINGS = ("min_cutoff", "beta", "jump")
 #: The filter the overlay used before SkeletonFilter, and the engine's, for comparison.
 OLD = (1.5, 0.2, 1.0)
 ENGINE = (1.5, 0.01, 1.0)
@@ -89,9 +89,17 @@ def apply_one_euro(clip: Clip, min_cutoff: float, beta: float, d_cutoff: float) 
     return np.array([f(x, t) for x, t in zip(clip.xy, clip.t)])
 
 
-def apply_skeleton(clip: Clip, **settings) -> np.ndarray:
+def run_skeleton(clip: Clip, **settings) -> tuple[np.ndarray, np.ndarray]:
+    """Positions and opacities, one per frame. The last frames need frames after them, so the last is repeated."""
     f = SkeletonFilter(**settings)
-    return np.array([f(x, v, t, clip.long_side)[0] for x, v, t in zip(clip.xy, clip.vis, clip.t)])
+    dt = float(np.median(np.diff(clip.t)))
+    feed = list(zip(clip.xy, clip.vis, clip.t)) + [(clip.xy[-1], clip.vis[-1], clip.t[-1] + (k + 1) * dt) for k in range(f.ahead)]
+    out = [r for r in (f(x, v, t, clip.long_side) for x, v, t in feed) if r is not None]
+    return np.array([r[0] for r in out]), np.array([r[1] for r in out])
+
+
+def apply_skeleton(clip: Clip, **settings) -> np.ndarray:
+    return run_skeleton(clip, **settings)[0]
 
 
 def reference(clip: Clip) -> np.ndarray:
@@ -156,20 +164,27 @@ def compare(clips: list[Clip], settings: dict[str, float], sweep: bool) -> None:
     print(row("raw", [score(c, c.xy) for c in clips]))
     print(row(f"engine One Euro {ENGINE}", [score(c, apply_one_euro(c, *ENGINE)) for c in clips]))
     print(row(f"old overlay One Euro {OLD}", [score(c, apply_one_euro(c, *OLD)) for c in clips]))
+    drawn = [c for c in clips if any("shown" in f for f in c.frames)]
+    if drawn:
+        print(row(f"as drawn on the device ({len(drawn)} clip(s))", [score(c, as_drawn(c)) for c in drawn]))
     print(row(f"SkeletonFilter {settings or 'defaults'}", [score(c, apply_skeleton(c, **settings)) for c in clips]))
     if sweep:
-        grid = itertools.product((0.005, 0.01, 0.02), (1.0, 2.0), (0.0, 0.5, 0.75), (50.0, 60.0, 80.0))
-        for beta, d_cutoff, lead, jump in grid:
-            s = {**settings, "beta": beta, "d_cutoff": d_cutoff, "lead": lead, "jump": jump}
-            print(row(f"beta {beta} dc {d_cutoff} lead {lead} jump {jump:.0f}", [score(c, apply_skeleton(c, **s)) for c in clips]))
+        for ahead, min_cutoff, beta in itertools.product((1, 2, 3), (0.5, 1.0, 1.5), (0.05, 0.1, 0.2)):
+            s = {**settings, "ahead": ahead, "min_cutoff": min_cutoff, "beta": beta}
+            print(row(f"ahead {ahead} cutoff {min_cutoff} beta {beta}", [score(c, apply_skeleton(c, **s)) for c in clips]))
+
+
+def as_drawn(clip: Clip) -> np.ndarray:
+    """What the device drew, where the export recorded it; the raw pose elsewhere."""
+    posed = [f for f in clip.frames if f["pose"]]
+    return np.array([np.array(f["shown"])[:, :2] if "shown" in f else xy for f, xy in zip(posed, clip.xy)])
 
 
 def blinks(clip: Clip) -> tuple[float, float]:
-    """Joints appearing or disappearing per 1000 joint-frames: at a hard limit of 0.5, then with SkeletonFilter's hysteresis."""
-    f = SkeletonFilter()
-    shown = np.array([f(x, v, t, clip.long_side)[1] for x, v, t in zip(clip.xy, clip.vis, clip.t)])[:, BODY]
+    """Joints popping on or off per 1000 joint-frames: at a hard limit of 0.5, then opacity steps as large with the fade."""
+    opacity = run_skeleton(clip)[1][:, BODY]
     hard = (clip.vis >= 0.5)[:, BODY]
-    return float((hard[1:] != hard[:-1]).mean() * 1000), float((shown[1:] != shown[:-1]).mean() * 1000)
+    return float((hard[1:] != hard[:-1]).mean() * 1000), float((np.abs(np.diff(opacity, axis=0)) >= 0.5).mean() * 1000)
 
 
 def timing(clip: Clip) -> None:
@@ -177,7 +192,7 @@ def timing(clip: Clip) -> None:
     ts = np.array([f["ts"] for f in clip.frames], float)
     print(clip.name)
     print(f"  {len(ts)} frames, {1000 / np.median(np.diff(ts)):.1f} fps, slowest gaps {np.sort(np.diff(ts))[-3:].round()} ms")
-    for key, what in (("copy_ms", "frame copy"), ("detect_ms", "model"), ("age_ms", "camera to callback")):
+    for key, what in (("copy_ms", "frame copy"), ("detect_ms", "model"), ("draw_ms", "skeleton"), ("age_ms", "camera to callback")):
         v = np.array([f[key] for f in clip.frames if f.get(key) is not None])
         print(f"  {what}: " + (f"median {np.median(v):.1f} ms, p95 {np.percentile(v, 95):.1f} ms" if len(v) else "not recorded"))
     dropped = [f["dropped"] for f in clip.frames if f.get("dropped") is not None]
@@ -239,21 +254,28 @@ def skew(clip: Clip, model: Path) -> None:
 
 
 def render(clip: Clip, out: Path) -> None:
-    """The set's video with the old overlay filter on the left and SkeletonFilter on the right."""
-    old, new = apply_one_euro(clip, *OLD), apply_skeleton(clip)
+    """The set's video with what came before on the left and SkeletonFilter on the right, drawn alike to compare motion."""
+    recorded = any("shown" in f for f in clip.frames)
+    old = as_drawn(clip) if recorded else apply_one_euro(clip, *OLD)
+    new, opacity = run_skeleton(clip)
     cap = cv2.VideoCapture(str(video_of(clip)))
     fps = cap.get(cv2.CAP_PROP_FPS) or 30.0
     w, h = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)), int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
     offset = align_offset(clip, cap.get(cv2.CAP_PROP_FRAME_COUNT) / fps)
     writer = cv2.VideoWriter(str(out), cv2.VideoWriter_fourcc(*"mp4v"), fps, (w * 2, h))
 
+    bones = [(a, b) for a, b in SKELETON if a not in (29, 30) and b not in (29, 30)]  # a foot is one line in the app
+
     def draw(image: np.ndarray, xy: np.ndarray, vis: np.ndarray, label: str) -> None:
-        for a, b in SKELETON:
+        # In sixteenths of a pixel: rounding to whole pixels would add a shake of its own.
+        at = lambda i: tuple(int(round(v * 16)) for v in xy[i])
+        for a, b in bones:
             if vis[a] >= 0.5 and vis[b] >= 0.5:
-                cv2.line(image, tuple(map(int, xy[a])), tuple(map(int, xy[b])), (236, 241, 238), 5, cv2.LINE_AA)
+                cv2.line(image, at(a), at(b), (255, 255, 255), 4, cv2.LINE_AA, shift=4)
         for i in BODY:
             if vis[i] >= 0.5:
-                cv2.circle(image, tuple(map(int, xy[i])), 8, (120, 220, 178), -1, cv2.LINE_AA)
+                cv2.circle(image, at(i), 7 * 16, (255, 255, 255), -1, cv2.LINE_AA, shift=4)
+                cv2.circle(image, at(i), 5 * 16, (120, 220, 178), -1, cv2.LINE_AA, shift=4)
         cv2.putText(image, label, (24, 56), cv2.FONT_HERSHEY_SIMPLEX, 1.4, (255, 255, 255), 3, cv2.LINE_AA)
 
     n = 0
@@ -264,13 +286,13 @@ def render(clip: Clip, out: Path) -> None:
         # The pose taken from this picture, as the replay finds it.
         i = int(np.clip(np.searchsorted(clip.t, n / fps + offset + POSE_STAMP_LAG_S), 0, len(clip.t) - 1))
         left = frame.copy()
-        draw(left, old[i], clip.vis[i], "old")
-        draw(frame, new[i], clip.vis[i], "new")
+        draw(left, old[i], clip.vis[i], "as drawn" if recorded else "old")
+        draw(frame, new[i], opacity[i], "new")
         writer.write(np.hstack([left, frame]))
         n += 1
     cap.release()
     writer.release()
-    print(f"{out}: {n} frames, old filter on the left, SkeletonFilter on the right")
+    print(f"{out}: {n} frames, {'as drawn' if recorded else 'old filter'} on the left, SkeletonFilter on the right")
 
 
 def main(argv=None) -> None:
@@ -282,6 +304,7 @@ def main(argv=None) -> None:
     p.add_argument("--skew", action="store_true", help="measure the pose time stamps against the video")
     p.add_argument("--render", type=Path, help="write a side-by-side video (one clip)")
     p.add_argument("--model", type=Path, default=Path("web/public/models/pose_landmarker_lite.task"), help="for --skew")
+    p.add_argument("--ahead", type=int, help="frames the picture is shown late, to smooth with")
     for name in SETTINGS:
         p.add_argument(f"--{name.replace('_', '-')}", type=float)
     args = p.parse_args(argv)
@@ -304,11 +327,11 @@ def main(argv=None) -> None:
             if args.skew:
                 skew(clip, args.model)
     else:
-        settings = {k: v for k in SETTINGS if (v := getattr(args, k)) is not None}
+        settings = {k: v for k in (*SETTINGS, "ahead") if (v := getattr(args, k)) is not None}
         compare(clips, settings, args.sweep)
         pairs = [blinks(c) for c in clips]
-        print(f"Joints blinking per 1000 joint-frames: {statistics.fmean(a for a, _ in pairs):.2f} at a hard limit, "
-              f"{statistics.fmean(b for _, b in pairs):.2f} with hysteresis")
+        print(f"Joints popping on or off per 1000 joint-frames: {statistics.fmean(a for a, _ in pairs):.2f} at a hard limit, "
+              f"{statistics.fmean(b for _, b in pairs):.2f} with the fade")
 
 
 if __name__ == "__main__":

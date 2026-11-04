@@ -9,7 +9,7 @@ type State = { kind: "idle" } | { kind: "busy" } | { kind: "done"; text: string 
 export function LabExport({ record, capture }: { record: SessionRecord; capture: LabCapture }) {
   const [state, setState] = useState<State>({ kind: "idle" });
   const { log, recording } = capture;
-  const { copyMs, detectMs, dropped } = labTimings(log);
+  const { copyMs, detectMs, drawMs, dropped } = labTimings(log);
 
   const exportClip = async () => {
     setState({ kind: "busy" });
@@ -34,6 +34,7 @@ export function LabExport({ record, capture }: { record: SessionRecord; capture:
         {recording ? ` · ${(recording.video.size / 1e6).toFixed(1)} MB video` : " · no video"}
         {detectMs !== null && ` · model ${detectMs.toFixed(0)} ms`}
         {copyMs !== null && ` · frame copy ${copyMs.toFixed(0)} ms`}
+        {drawMs !== null && ` · skeleton ${drawMs.toFixed(0)} ms`}
         {dropped !== null && ` · ${dropped} camera frames dropped`}
       </p>
       {state.kind === "done" && <p className="hint small">{state.text}</p>}

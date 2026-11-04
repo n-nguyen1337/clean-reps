@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { isClean, type Body, type Cue, type ExerciseUpdate, type RepResult } from "../engine/exercise";
 import { createExercise } from "../engine/exercises";
 import { CueManager, type Speaker } from "../engine/feedback";
+import { SKELETON_SETTINGS } from "../engine/filters";
 import { PoseSmoother, SkeletonSmoother } from "../engine/pose";
 import { Session, type SessionRecord } from "../engine/session";
 import { LandmarkLog } from "../playback/lab";
@@ -9,6 +10,7 @@ import { PoseTrack, RECORD_CAP_S, type Playback, type Recording } from "../playb
 import { SetRecorder } from "../playback/recorder";
 import { createLandmarker, toPoseFrame, type ModelVariant } from "../pose/landmarker";
 import { cameraPermission, describeStartError, rememberCamera, type CameraError } from "../store/consent";
+import { DelayedFrames } from "./delayedFrames";
 import { CameraExplainer } from "./Disclaimer";
 import { drawPose } from "./overlay";
 
@@ -147,11 +149,11 @@ export function LiveSession({ exercise, body, model, speaker, recordVideo, lab, 
 
       const ex = createExercise(exercise, body);
       const smoother = new PoseSmoother();
-      // What's drawn tracks fast movement more closely than what's measured.
+      // What's drawn is smoothed with frames the engine hasn't waited for, so the two filters differ.
       const shownSmoother = new SkeletonSmoother();
       const cues = new CueManager(2, 4, speaker.say);
       const ctx = canvasRef.current!.getContext("2d")!;
-      const frameCtx = frameRef.current!.getContext("2d", { alpha: false })!;
+      const picture = new DelayedFrames(frameRef.current!.getContext("2d", { alpha: false })!, SKELETON_SETTINGS.ahead);
       const start = performance.now();
       if (recordVideo) recorderRef.current = SetRecorder.start(stream, start, RECORD_CAP_S);
       let lastTs = -1, lastRep: RepResult | null = null, fps = 0, prev = start, wasReady = false;
@@ -166,15 +168,12 @@ export function LiveSession({ exercise, body, model, speaker, recordVideo, lab, 
         const t = ts / 1000;
 
         const { videoWidth: w, videoHeight: h } = video;
-        if (ctx.canvas.width !== w || ctx.canvas.height !== h) {
-          Object.assign(ctx.canvas, { width: w, height: h });
-          Object.assign(frameCtx.canvas, { width: w, height: h });
-        }
 
-        // Show the frame the model is about to read. The video keeps playing while it runs, so
-        // drawing over the live element would leave the skeleton behind the person when they move.
+        // Keep the frame the model is about to read, and put up the one from a few frames ago with
+        // its pose below. The video keeps playing while the model runs, so drawing over the live
+        // element would leave the skeleton behind the person, and the frames since smooth the pose.
         const copyStart = performance.now();
-        frameCtx.drawImage(video, 0, 0, w, h);
+        picture.push(video, w, h);
         const detectStart = performance.now();
         const result = landmarker.detectForVideo(video, ts);
         const detectEnd = performance.now();
@@ -190,20 +189,22 @@ export function LiveSession({ exercise, body, model, speaker, recordVideo, lab, 
         if (update.ready && !wasReady) setReadyBlinks((n) => n + 1);
         wasReady = update.ready;
         cues.push(update.cues, t);
-        const shown = shownSmoother.apply(raw, Math.max(w, h));
-        if (recorderRef.current?.recording) posesRef.current.push(t, shown);
-        drawPose(ctx, shown);
+        const drawStart = performance.now();
+        const shown = shownSmoother.apply(raw, ts, Math.max(w, h));
+        if (shown) {
+          if (recorderRef.current?.recording) posesRef.current.push(shown.timestampMs / 1000, shown.pose);
+          drawPose(ctx, shown.pose, { width: w, height: h });
+        }
 
         const presented = meta?.presentedFrames ?? null;
         labRef.current?.push(t, ts, raw, w, h, {
-          shown,
-          timing: {
-            copyMs: detectStart - copyStart,
-            detectMs: detectEnd - detectStart,
-            ageMs: meta?.captureTime === undefined ? null : now - meta.captureTime,
-            dropped: presented === null || lastPresented === null ? null : Math.max(presented - lastPresented - 1, 0),
-          },
+          copyMs: detectStart - copyStart,
+          detectMs: detectEnd - detectStart,
+          drawMs: performance.now() - drawStart,
+          ageMs: meta?.captureTime === undefined ? null : now - meta.captureTime,
+          dropped: presented === null || lastPresented === null ? null : Math.max(presented - lastPresented - 1, 0),
         });
+        if (shown) labRef.current?.setShown(shown.timestampMs, shown.pose);
         lastPresented = presented;
 
         fps = 0.9 * fps + 0.1 * (1000 / Math.max(now - prev, 1));

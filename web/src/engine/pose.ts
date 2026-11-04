@@ -15,12 +15,12 @@ export type Part = Exclude<keyof Side, "name">;
 export const LEFT: Side = { name: "left", shoulder: 11, elbow: 13, wrist: 15, hip: 23, knee: 25, ankle: 27, heel: 29, foot: 31 };
 export const RIGHT: Side = { name: "right", shoulder: 12, elbow: 14, wrist: 16, hip: 24, knee: 26, ankle: 28, heel: 30, foot: 32 };
 
-// Body skeleton drawn in the overlay (face landmarks are left out on purpose).
+// Body skeleton drawn in the overlay (face and hand landmarks are left out on purpose, and a foot is one line).
 export const SKELETON: [number, number][] = [
   [11, 12], [11, 23], [12, 24], [23, 24],
   [11, 13], [13, 15], [12, 14], [14, 16],
-  [23, 25], [25, 27], [27, 29], [29, 31], [27, 31],
-  [24, 26], [26, 28], [28, 30], [30, 32], [28, 32],
+  [23, 25], [25, 27], [27, 31],
+  [24, 26], [26, 28], [28, 32],
 ];
 
 type Points = Float64Array; // flat (33 * 3)
@@ -88,29 +88,39 @@ export class PoseSmoother {
   }
 }
 
+/** What drawing needs from a pose: positions, and how solidly to draw each joint from 0 to 1. */
+export interface DrawablePose {
+  img(i: number): ArrayLike<number>;
+  opacity(i: number): number;
+}
+
+/** A pose to draw, never to measure from. */
+export class DrawnPose implements DrawablePose {
+  constructor(private readonly xy: Float64Array, private readonly opacities: Float64Array) {}
+
+  img(i: number): Float64Array { return this.xy.subarray(i * 2, i * 2 + 2); }
+  opacity(i: number): number { return this.opacities[i]; }
+}
+
 /**
- * The pose to draw. Only image x and y are filtered, and visibility becomes 1
- * or 0 for shown or hidden, so this isn't a pose to measure from.
+ * Each frame in gives back the pose to draw for the frame `SKELETON_SETTINGS.ahead`
+ * before it, with that frame's time stamp, or null until there are enough frames.
  */
 export class SkeletonSmoother {
   private filter = new SkeletonFilter();
 
-  apply(pose: PoseFrame | null, longSide: number): PoseFrame | null {
-    if (pose === null) {
-      this.filter.reset();
-      return null;
+  apply(pose: PoseFrame | null, timestampMs: number, longSide: number): { timestampMs: number; pose: DrawnPose | null } | null {
+    let xy: Float64Array | null = null;
+    if (pose) {
+      xy = new Float64Array(NUM_LANDMARKS * 2);
+      for (let i = 0; i < NUM_LANDMARKS; i++) {
+        xy[i * 2] = pose.image[i * 3];
+        xy[i * 2 + 1] = pose.image[i * 3 + 1];
+      }
     }
-    const xy = new Float64Array(NUM_LANDMARKS * 2);
-    for (let i = 0; i < NUM_LANDMARKS; i++) {
-      xy[i * 2] = pose.image[i * 3];
-      xy[i * 2 + 1] = pose.image[i * 3 + 1];
-    }
-    const out = this.filter.apply(xy, pose.visibility, pose.timestampMs / 1000, longSide);
-    const image = pose.image.slice();
-    for (let i = 0; i < NUM_LANDMARKS; i++) {
-      image[i * 3] = out.xy[i * 2];
-      image[i * 3 + 1] = out.xy[i * 2 + 1];
-    }
-    return new PoseFrame(image, pose.world, Float64Array.from(out.shown), pose.timestampMs);
+    const out = this.filter.push(xy, pose && pose.visibility, timestampMs / 1000, longSide);
+    if (!out) return null;
+    // Rounded so it's the frame's own stamp again, not that stamp after seconds and back.
+    return { timestampMs: Math.round(out.t * 1000), pose: out.xy && out.opacity && new DrawnPose(out.xy, out.opacity) };
   }
 }

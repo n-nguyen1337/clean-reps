@@ -5,7 +5,7 @@
 
 import type { Body, RepResult } from "../engine/exercise";
 import { SKELETON_SETTINGS } from "../engine/filters";
-import type { PoseFrame } from "../engine/pose";
+import { NUM_LANDMARKS, type DrawablePose, type PoseFrame } from "../engine/pose";
 import type { ModelVariant } from "../pose/landmarker";
 import type { Recording } from "./playback";
 
@@ -26,10 +26,12 @@ export function labEnabled(search = location.search): boolean {
 
 /** How a frame went, to tell a slow device from a laggy filter. */
 export interface FrameTiming {
-  /** Copying the camera frame to the canvas. */
+  /** Copying the camera frame into the frame buffer and putting a buffered one on screen. */
   copyMs: number;
   /** Running the pose model. */
   detectMs: number;
+  /** Smoothing and drawing the skeleton. */
+  drawMs: number;
   /** From camera capture to this frame's callback, where the browser reports it. */
   ageMs: number | null;
   /** Camera frames skipped since the last processed one, where the browser reports it. */
@@ -40,7 +42,7 @@ interface Frame {
   t: number;
   ts: number;
   pose: PoseFrame | null;
-  shown?: PoseFrame | null;
+  shown?: DrawablePose | null;
   timing?: FrameTiming;
 }
 
@@ -52,11 +54,16 @@ export class LandmarkLog {
 
   constructor(readonly model: ModelVariant, private readonly capS: number) {}
 
-  push(t: number, ts: number, pose: PoseFrame | null, width: number, height: number,
-    drawn?: { shown: PoseFrame | null; timing: FrameTiming }): void {
+  push(t: number, ts: number, pose: PoseFrame | null, width: number, height: number, timing?: FrameTiming): void {
     if (t > this.capS) return;
     [this.width, this.height] = [width, height];
-    this.frames.push({ t, ts, pose, ...drawn });
+    this.frames.push({ t, ts, pose, ...(timing && { timing }) });
+  }
+
+  /** What was drawn for the frame stamped `ts`. It comes a few frames after the frame itself. */
+  setShown(ts: number, shown: DrawablePose | null): void {
+    const frame = this.frames.findLast((f) => f.ts === ts);
+    if (frame) frame.shown = shown;
   }
 }
 
@@ -68,6 +75,7 @@ export function labTimings(log: LandmarkLog) {
   return {
     copyMs: median(timings.map((f) => f.copyMs)),
     detectMs: median(timings.map((f) => f.detectMs)),
+    drawMs: median(timings.map((f) => f.drawMs)),
     dropped: timings.some((f) => f.dropped !== null) ? timings.reduce((sum, f) => sum + (f.dropped ?? 0), 0) : null,
   };
 }
@@ -77,9 +85,9 @@ const rows = (flat: Float64Array) => Array.from({ length: flat.length / 3 }, (_,
   [round(flat[i * 3]), round(flat[i * 3 + 1]), round(flat[i * 3 + 2])]);
 const tenth = (v: number) => Math.round(v * 10) / 10;
 const cents = (v: number) => Math.round(v * 100) / 100;
-/** As drawn: [x, y, shown] per joint, in fewer digits since it's only ever looked at. */
-const shownRows = (pose: PoseFrame) => Array.from({ length: pose.visibility.length }, (_, i) =>
-  [cents(pose.image[i * 3]), cents(pose.image[i * 3 + 1]), pose.visibility[i]]);
+/** As drawn: [x, y, opacity] per joint, in fewer digits since it's only ever looked at. */
+const shownRows = (pose: DrawablePose) => Array.from({ length: NUM_LANDMARKS }, (_, i) =>
+  [cents(pose.img(i)[0]), cents(pose.img(i)[1]), cents(pose.opacity(i))]);
 
 /**
  * The export's JSON. `frames` uses the parity fixture layout, so the Python
@@ -118,7 +126,7 @@ export function labExport({ exercise, body, reps, log, recording, videoFile, now
       pose: pose && { image: rows(pose.image), world: rows(pose.world), visibility: Array.from(pose.visibility, round) },
       ...(shown && { shown: shownRows(shown) }),
       ...(timing && {
-        copy_ms: tenth(timing.copyMs), detect_ms: tenth(timing.detectMs),
+        copy_ms: tenth(timing.copyMs), detect_ms: tenth(timing.detectMs), draw_ms: tenth(timing.drawMs),
         age_ms: timing.ageMs === null ? null : tenth(timing.ageMs), dropped: timing.dropped,
       }),
     })),

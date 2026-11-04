@@ -107,7 +107,7 @@ export function Player({ playback, rows, trace, metric, faultLabel, onTime, ref 
       if (fixingDuration) return;
       lastMedia = mediaTime;
       const now = mediaTime + offsetS;
-      drawPose(ctx, poses.at(now + POSE_STAMP_LAG_S));
+      drawPose(ctx, poses.at(now + POSE_STAMP_LAG_S), { width, height });
       setT(now);
       const rep = activeRef.current;
       if (rep && !video.paused && now >= rep.rep.endS + PAD_S) {
@@ -209,7 +209,7 @@ export function Player({ playback, rows, trace, metric, faultLabel, onTime, ref 
       <div className="replay-view" style={{ aspectRatio: `${width} / ${height}` }}>
         <div className="stage">
           {url && <video ref={videoRef} src={url} playsInline muted preload="auto" />}
-          <canvas ref={canvasRef} width={width} height={height} />
+          <canvas ref={canvasRef} />
         </div>
         <span className="pill replay-time">{clock(t)} / {clock(end)}</span>
         <div className="replay-hud">

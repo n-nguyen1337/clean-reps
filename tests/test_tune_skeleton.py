@@ -24,21 +24,26 @@ def clip(tune):
     return tune.load_clip(CLIP)
 
 
-def test_smoother_than_the_old_overlay_and_faster_than_the_engine(tune, clip):
+def test_smoother_than_the_old_overlay_and_the_engine_without_their_lag(tune, clip):
     new = tune.score(clip, tune.apply_skeleton(clip))
     old = tune.score(clip, tune.apply_one_euro(clip, *tune.OLD))
     engine = tune.score(clip, tune.apply_one_euro(clip, *tune.ENGINE))
 
-    assert new["moving_torso"] < old["moving_torso"]
-    assert new["still_torso"] < old["still_torso"]
-    assert new["hops"] < old["hops"]
-    assert new["lag_torso"] < engine["lag_torso"] * 0.6
-    assert new["lag_torso"] < 20
+    assert new["moving_torso"] < old["moving_torso"] / 2
+    assert new["still_torso"] < old["still_torso"] / 2
+    assert new["hops"] < old["hops"] / 2
+    assert new["moving_torso"] < engine["moving_torso"]
+    assert new["lag_torso"] < 8
+    assert new["lag_torso"] < engine["lag_torso"] / 3
 
 
-def test_hysteresis_cuts_blinking(tune, clip):
-    hard, with_hysteresis = tune.blinks(clip)
-    assert with_hysteresis <= hard
+def test_a_filtered_clip_keeps_every_frame(tune, clip):
+    assert len(tune.apply_skeleton(clip)) == len(clip.t)
+
+
+def test_the_fade_stops_joints_popping(tune, clip):
+    hard, with_fade = tune.blinks(clip)
+    assert with_fade < hard
 
 
 def test_timing_says_when_a_clip_has_none(tune, clip, capsys):

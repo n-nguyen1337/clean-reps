@@ -131,16 +131,21 @@ The old address, https://n-nguyen1337.github.io/clean-reps/app/, redirects here.
 Open the app with `?lab=1` (`?lab=0` turns it off again). After a set, the summary screen has an **Export video and skeleton** button, which hands over two files through the share sheet, or as downloads where there isn't one:
 
 - `<name>.mp4` (or `.webm`): the set's video, without the skeleton drawn on it.
-- `<name>.lab.json`: each frame's raw landmarks (`pose`), what was drawn (`shown`), and timings: `copy_ms`, `detect_ms`, `age_ms` and `dropped`. It also has the filter settings (`overlay`) and the engine's verdicts as draft labels.
+- `<name>.lab.json`: each frame's raw landmarks (`pose`), what was drawn for it (`shown`: x, y and opacity per joint), and timings: `copy_ms`, `detect_ms`, `draw_ms`, `age_ms` and `dropped`. It also has the filter settings (`overlay`) and the engine's verdicts as draft labels.
 
-The drawn skeleton has its own filter, `SkeletonFilter` in [cleanreps/filters.py](cleanreps/filters.py), ported to [web/src/engine/filters.ts](web/src/engine/filters.ts). The engine's smoothing is separate, so changing it doesn't affect rep counts or verdicts. To tune it, keep the two files together and run:
+The drawn skeleton has its own filter, `SkeletonFilter` in [cleanreps/filters.py](cleanreps/filters.py), ported to [web/src/engine/filters.ts](web/src/engine/filters.ts). The engine's smoothing is separate, so changing it doesn't affect rep counts or verdicts.
+
+The live view shows the camera picture `ahead` frames late (2 frames, about 66 ms), so each frame's pose can be smoothed with the frames after it and still be drawn on its own picture. A larger `ahead` is smoother but delays the picture more, and `ahead` 0 turns the delay off at the cost of lag and shake. How the skeleton looks is set by `LOOK` in [web/src/ui/overlay.ts](web/src/ui/overlay.ts).
+
+To tune the filter, keep the two exported files together and run:
 
 ```bash
 python tools/tune_skeleton.py clip.lab.json --timing          # did the device keep up?
-python tools/tune_skeleton.py clip.lab.json --beta 0.02       # score other settings
+python tools/tune_skeleton.py clip.lab.json --beta 0.1        # score other settings
+python tools/tune_skeleton.py clip.lab.json --ahead 1         # score a shorter picture delay
 python tools/tune_skeleton.py clip.lab.json --sweep           # score a grid of settings
 python tools/tune_skeleton.py clip.lab.json --skew            # pose time stamps vs the video
-python tools/tune_skeleton.py clip.lab.json --render out.mp4  # old and new filter, side by side
+python tools/tune_skeleton.py clip.lab.json --render out.mp4  # what was drawn and the current filter, side by side
 ```
 
 To change a setting, update the defaults in both filter files and the values shared by their tests, [tests/test_geometry_filters.py](tests/test_geometry_filters.py) and [web/src/engine/\_\_tests\_\_/skeleton.test.ts](web/src/engine/__tests__/skeleton.test.ts). If `--skew` shows a device differs from the replay's assumption, adjust `POSE_STAMP_LAG_S` in [web/src/playback/playback.ts](web/src/playback/playback.ts) and in the tool.
