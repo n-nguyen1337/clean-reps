@@ -5,6 +5,7 @@ export function Disclaimer({ onAccept }: { onAccept: () => void }) {
   const ref = useRef<HTMLDialogElement>(null);
   useEffect(() => {
     const dialog = ref.current!;
+    dialog.autofocus = true; // focus the sheet, not its button, so a stray Enter can't accept
     if (!dialog.open) dialog.showModal();
   }, []);
 
@@ -19,7 +20,7 @@ export function Disclaimer({ onAccept }: { onAccept: () => void }) {
         <li>Pose tracking can be wrong. Treat cues as suggestions, and go by how your body feels.</li>
         <li>Clear the space around you, and prop the camera where it can't fall.</li>
       </ul>
-      <button className="primary big" autoFocus onClick={() => { ref.current?.close(); onAccept(); }}>I understand</button>
+      <button className="primary big" onClick={() => { ref.current?.close(); onAccept(); }}>I understand</button>
     </dialog>
   );
 }

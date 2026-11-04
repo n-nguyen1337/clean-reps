@@ -91,7 +91,7 @@ function Totals({ sets, prog, now }: { sets: SetRecord[]; prog: Progression | nu
 function FirstRun() {
   return (
     <section className="panel first-run">
-      <h2>How it works</h2>
+      <h2>Your first set</h2>
       <ol className="steps">
         {STEPS.map((s) => <li key={s.title}><b>{s.title}</b><span>{s.text}</span></li>)}
       </ol>

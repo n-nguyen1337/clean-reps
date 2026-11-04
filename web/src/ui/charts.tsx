@@ -87,11 +87,11 @@ function YAxis({ ticks, y, width, unit }: { ticks: number[]; y: (v: number) => n
 }
 
 /** Reference line across the plot with a label at its right end. */
-function RefLine({ y, width, label, tone }: { y: number; width: number; label: string; tone?: "warn" }) {
+function RefLine({ y, width, label, tone }: { y: number; width: number; label?: string; tone?: "warn" }) {
   return (
     <g className={`ref ${tone ?? ""}`}>
       <line x1={M.left} x2={width - M.right} y1={y} y2={y} />
-      <text x={width - M.right - 4} y={y - 5} textAnchor="end">{label}</text>
+      {label && <text x={width - M.right - 4} y={y - 5} textAnchor="end">{label}</text>}
     </g>
   );
 }
@@ -148,7 +148,8 @@ export function TraceChart({ trace, metric, rows, refs, cursor, onSeek }: {
   return (
     <Frame frameRef={ref} width={width} height={height} tip={tip}
       title={`${info.label} over the set`}
-      subtitle={`Each shaded band is one rep. Dips below the lines count and pass depth.${onSeek ? " Tap to replay that moment." : ""}`}>
+      subtitle={`Each shaded band is one rep.${onSeek ? " Tap to replay that moment." : ""}`}
+      legend={refs.map((r) => <span key={r.label}><i className="swatch dash" />{r.label}</span>)}>
       <YAxis ticks={dom.ticks} y={y} width={width} unit={info.unit} />
       {rows.map((r) => {
         const faulted = r.rep.faults.length > 0;
@@ -167,7 +168,7 @@ export function TraceChart({ trace, metric, rows, refs, cursor, onSeek }: {
         ))}
       </g>
       <path d={d} className="series-line s1" />
-      {refs.map((r) => <RefLine key={r.label} y={y(r.value)} width={width} label={r.label} tone={r.tone} />)}
+      {refs.map((r) => <RefLine key={r.label} y={y(r.value)} width={width} tone={r.tone} />)}
       {cursor != null && cursor >= t0 && cursor <= t1 && (
         <line className="cursor" x1={x(cursor)} x2={x(cursor)} y1={M.top} y2={height - M.bottom} />
       )}
@@ -186,11 +187,19 @@ export function TraceChart({ trace, metric, rows, refs, cursor, onSeek }: {
 
 // ---------------------------------------------------------------------------
 
-/** Band layout shared by the per-rep charts. */
-function repBands(n: number, width: number) {
+/** Band layout shared by the per-rep charts. When every label can't fit, ticks skip along the counted reps,
+ *  so a partial rep's "P1" doesn't land among plain numbers. */
+function repBands(n: number, width: number, labels: string[] = []) {
   const band = (width - M.left - M.right) / Math.max(n, 1);
-  const every = Math.ceil(n / Math.max(1, Math.floor((width - M.left - M.right) / 28)));
-  return { band, cx: (i: number) => M.left + band * (i + 0.5), showLabel: (i: number) => i % every === 0 };
+  const every = Math.ceil(n / Math.max(1, Math.floor((width - M.left - M.right) / 24)));
+  const shown = new Set<number>();
+  let last = -Infinity;
+  labels.forEach((label, i) => {
+    if (every > 1 && (label.startsWith("P") || i - last < every)) return;
+    shown.add(i);
+    last = i;
+  });
+  return { band, cx: (i: number) => M.left + band * (i + 0.5), showLabel: (i: number) => shown.has(i) };
 }
 
 /** One rule's worst value per rep against its limit; flagged reps are marked. */
@@ -204,7 +213,7 @@ export function RuleChart({ series, onSelect }: { series: RuleSeries; onSelect?:
   if (values.length === 0) return null;
   const dom = niceDomain([...values, limit]);
   const y = (v: number) => M.top + (1 - (v - dom.lo) / (dom.hi - dom.lo)) * (height - M.top - M.bottom);
-  const { band, cx, showLabel } = repBands(points.length, width);
+  const { band, cx, showLabel } = repBands(points.length, width, points.map((p) => p.label));
 
   let d = "";
   points.forEach((p, i) => {
@@ -217,7 +226,7 @@ export function RuleChart({ series, onSelect }: { series: RuleSeries; onSelect?:
 
   return (
     <Frame frameRef={ref} width={width} height={height} tip={tip}
-      title={`${info.label} per rep`} subtitle={`Worst point per rep, ${better}. Past the line: "${rule.cue}".`}>
+      title={`${info.label} per rep`} subtitle={`${better[0].toUpperCase()}${better.slice(1)}. Past the line: "${rule.cue}".`}>
       <YAxis ticks={dom.ticks} y={y} width={width} unit={info.unit} />
       <rect className="fault-zone" x={M.left} y={zoneTop} width={width - M.left - M.right} height={Math.max(zoneBottom - zoneTop, 0)} />
       <RefLine y={y(limit)} width={width} label={`limit ${fmt(limit, info.unit)}`} tone="warn" />
@@ -260,7 +269,7 @@ export function TempoChart({ rows, onSelect }: { rows: RepRow[]; onSelect?: (lab
 
   const dom = niceDomain(rows.map((r) => r.downS + r.upS), 4, true);
   const y = (v: number) => M.top + (1 - v / dom.hi) * (height - M.top - M.bottom);
-  const { band, cx, showLabel } = repBands(rows.length, width);
+  const { band, cx, showLabel } = repBands(rows.length, width, rows.map((r) => r.label));
   const barW = Math.min(24, band * 0.6);
   const gap = 2;
 

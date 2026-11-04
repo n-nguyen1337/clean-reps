@@ -57,7 +57,7 @@ function CoachSection({ record, analysis }: { record: SessionRecord; analysis: R
     return (
       <section className="coach">
         <p>Sign in to get a written review of this set from Claude, with cues and drills for your next one.</p>
-        <button className="primary" disabled={account.status === "loading"}
+        <button disabled={account.status === "loading"}
           onClick={() => account.signIn().catch((err) => setCoach({ kind: "error", message: String(err) }))}>
           Sign in with Google
         </button>
@@ -68,7 +68,7 @@ function CoachSection({ record, analysis }: { record: SessionRecord; analysis: R
 
   return (
     <section className="coach">
-      <button className="primary" disabled={coach.kind === "loading"} onClick={run}>
+      <button disabled={coach.kind === "loading"} onClick={run}>
         {coach.kind === "loading" ? "Analysing your set…" : "Get AI coaching"}
       </button>
       {coach.kind === "error" && <p className="error">{coach.message}</p>}

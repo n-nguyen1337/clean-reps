@@ -7,6 +7,8 @@ import type { SetRecord } from "../store/record";
 
 const fmt = (n: number) => n.toLocaleString();
 const pctOf = (l: Level) => (l.xp - l.levelXp) / (l.nextXp - l.levelXp);
+/** Keeps "Push-ups" and "12-Week" on one line: a word joiner either side of the hyphen. */
+const unbroken = (title: string) => title.replace(/-/g, "\u2060-\u2060");
 
 /** Fills from `from` (0–1) to `to` once mounted. */
 function XpBar({ to, from = to }: { to: number; from?: number }) {
@@ -39,7 +41,7 @@ function Badge({ def, prog, onSelect }: { def: AchievementDef; prog: Progression
     <button className={`badge ${def.tier}${unlocked ? "" : " locked"}`} onClick={onSelect && (() => onSelect(def))}
       aria-label={`${secret ? "Secret achievement" : def.title}, ${unlocked ? "unlocked" : "locked"}`}>
       <span className="badge-ring" aria-hidden="true">{secret ? "?" : def.emoji}</span>
-      <b>{secret ? "???" : def.title}</b>
+      <b>{secret ? "???" : unbroken(def.title)}</b>
       {def.exercise && !secret && <small>{EXERCISES[def.exercise].name}</small>}
       {progress && <span className="meter" aria-hidden="true"><i style={{ width: `${(progress.value / progress.target) * 100}%` }} /></span>}
     </button>
@@ -145,7 +147,7 @@ export function AchievementBoard({ prog, sets, onOpen, onBack }: {
   const count = ACHIEVEMENTS.filter((d) => prog.unlocked[d.id]).length;
 
   return (
-    <main className="page achievements">
+    <main className="page wide achievements">
       <a className="back-link" href="#/progress" onClick={(e) => { e.preventDefault(); onBack(); }}>‹ Progress</a>
       <h1>Achievements</h1>
       <LevelCard level={prog.level} unlocked={count} />
@@ -212,7 +214,7 @@ function EarnedBadge({ def }: { def: AchievementDef }) {
   return (
     <div className={`badge ${def.tier}`}>
       <span className="badge-ring" aria-hidden="true">{def.emoji}</span>
-      <b>{def.title}</b>
+      <b>{unbroken(def.title)}</b>
       {def.exercise && <small>{EXERCISES[def.exercise].name}</small>}
     </div>
   );

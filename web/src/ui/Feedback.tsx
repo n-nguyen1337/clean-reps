@@ -49,6 +49,7 @@ export function FeedbackSheet({ source, set, model, onClose }: {
   const [status, setStatus] = useState<Status>({ kind: "idle" });
   useEffect(() => {
     const dialog = ref.current!;
+    dialog.autofocus = true; // focus the sheet, not the first score
     if (!dialog.open) dialog.showModal();
   }, []);
 
