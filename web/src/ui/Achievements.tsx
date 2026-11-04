@@ -8,6 +8,7 @@ import { AchievementIcon } from "./AchievementIcon";
 
 const fmt = (n: number) => n.toLocaleString();
 const pctOf = (l: Level) => (l.xp - l.levelXp) / (l.nextXp - l.levelXp);
+const NAMES_EXERCISE = /squat|push-up/i;
 /** Keeps "Push-ups" and "12-Week" on one line: a word joiner either side of the hyphen. */
 const unbroken = (title: string) => title.replace(/-/g, "\u2060-\u2060");
 
@@ -43,7 +44,7 @@ function Badge({ def, prog, onSelect }: { def: AchievementDef; prog: Progression
       aria-label={`${secret ? "Secret achievement" : def.title}, ${unlocked ? "unlocked" : "locked"}`}>
       <span className="badge-ring" aria-hidden="true">{secret ? "?" : <AchievementIcon emoji={def.emoji} />}</span>
       <b>{secret ? "???" : unbroken(def.title)}</b>
-      {def.exercise && !secret && <small>{EXERCISES[def.exercise].name}</small>}
+      {def.exercise && !secret && !NAMES_EXERCISE.test(def.title) && <small>{EXERCISES[def.exercise].name}</small>}
       {progress && <span className="meter" aria-hidden="true"><i style={{ width: `${(progress.value / progress.target) * 100}%` }} /></span>}
     </button>
   );
@@ -216,7 +217,7 @@ function EarnedBadge({ def }: { def: AchievementDef }) {
     <div className={`badge ${def.tier}`}>
       <span className="badge-ring" aria-hidden="true"><AchievementIcon emoji={def.emoji} /></span>
       <b>{unbroken(def.title)}</b>
-      {def.exercise && <small>{EXERCISES[def.exercise].name}</small>}
+      {def.exercise && !NAMES_EXERCISE.test(def.title) && <small>{EXERCISES[def.exercise].name}</small>}
     </div>
   );
 }

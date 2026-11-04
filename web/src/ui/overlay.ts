@@ -8,8 +8,8 @@ export interface DrawablePose {
   visible(...ids: number[]): boolean;
 }
 
-const BONE_WIDTH = 4; // CSS pixels
-const BONE_HALO = 7.5;
+const BONE_WIDTH = 4.5; // CSS pixels
+const BONE_HALO = 8.5;
 const JOINT_RADIUS = 5;
 const isHand = (i: number) => i >= 17 && i <= 22; // fingers crowd into a blob at the wrist, and no rule reads them
 
@@ -25,7 +25,7 @@ export function drawPose(ctx: CanvasRenderingContext2D, pose: DrawablePose | nul
   const scale = canvasScale(ctx.canvas);
   ctx.lineCap = "round";
   // A dark halo first, so the bones stay readable against sand and sky.
-  for (const [width, color] of [[BONE_HALO, "rgba(16,18,17,0.55)"], [BONE_WIDTH, "rgba(238,241,236,0.92)"]] as const) {
+  for (const [width, color] of [[BONE_HALO, "rgba(16,18,17,0.65)"], [BONE_WIDTH, "rgba(238,241,236,0.92)"]] as const) {
     ctx.lineWidth = width * scale;
     ctx.strokeStyle = color;
     for (const [a, b] of SKELETON) {

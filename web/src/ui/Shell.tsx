@@ -32,7 +32,7 @@ const CRUMBS: Record<Route["page"], string[]> = {
 
 function StorageStatus() {
   const account = useAccount();
-  if (account.status !== "signed-in") return <span className="topbar-status">History saved on this device</span>;
+  if (account.status !== "signed-in") return null; // the pages say where history lives
   const { sync } = account;
   const text = sync.kind === "syncing" ? "Syncing…" : sync.kind === "error" ? "Sync failed"
     : sync.at ? `Synced ${sync.at.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}` : "Backed up";

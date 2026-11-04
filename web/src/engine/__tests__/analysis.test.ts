@@ -69,6 +69,13 @@ describe("analyze", () => {
     expect(tones).toEqual([...tones].sort((x, y) => ["warn", "good", "info"].indexOf(x) - ["warn", "good", "info"].indexOf(y)));
   });
 
+  it("puts every rule that passed in one takeaway", () => {
+    const clean = numbered([rep(95), rep(95), rep(95)]);
+    const passes = analyze(config, clean).insights.filter((i) => i.text.startsWith("Within the limit"));
+    expect(passes).toHaveLength(1);
+    expect(passes[0]).toEqual({ tone: "good", text: "Within the limit on every rep: knee angle, torso lean." });
+  });
+
   it("handles a set with no reps", () => {
     expect(analyze(config, []).insights).toEqual([{ tone: "info", text: "No reps recorded. Check that your whole body is in frame." }]);
   });
