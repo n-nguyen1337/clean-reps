@@ -109,7 +109,7 @@ export function Summary({ record, previous, playback, progress, back, children }
   const faults = Object.entries(s.faults).sort((a, b) => b[1] - a[1]);
   const primary = metricInfo(cfg.primaryMetric);
   const refs = [
-    { value: cfg.bottomThreshold, label: `rep counts below ${cfg.bottomThreshold}${primary.unit}` },
+    { value: cfg.bottomThreshold, label: `rep counts below ${cfg.bottomThreshold}${primary.unit}`, tone: "warn" as const },
     ...cfg.rules.filter((r) => r.metric === cfg.primaryMetric && r.max !== null)
       .map((r) => ({ value: r.max!, label: `${r.id} limit ${r.max}${primary.unit}`, tone: "warn" as const })),
   ];
@@ -142,6 +142,15 @@ export function Summary({ record, previous, playback, progress, back, children }
   const shownChart = charts.find((c) => c.id === pickedChart)?.id
     ?? charts.find((c) => c.id === faults[0]?.[0])?.id ?? charts[0].id;
 
+  // From 1024px the whole-set chart sits under the replay, and the rest run full width, three to a row.
+  const hasTrace = charts[0]?.id === "trace";
+  const perRep = charts.filter((c) => c.id !== "trace");
+  const tailOf = (i: number) => {
+    const left = perRep.length % 3;
+    if (i < perRep.length - left) return "";
+    return left === 1 ? " span-full" : " span-half";
+  };
+
   const started = new Date(s.started);
 
   return (
@@ -164,14 +173,13 @@ export function Summary({ record, previous, playback, progress, back, children }
         </div>
         <RepStrip reps={record.reps} size="large" legend />
         <dl className="kpi-strip flat">
-          <div><dt>Counted</dt><dd className="num">{s.reps}</dd></div>
-          <div><dt>Clean</dt><dd className="num">{s.cleanReps}</dd></div>
-          <div><dt>Not counted</dt><dd className="num">{s.partialReps}</dd></div>
           <div>
-            <dt>Tempo, down / up</dt>
-            <dd className="num">{s.avgDownS !== null && s.avgUpS !== null
-              ? <>{s.avgDownS.toFixed(1)}<small> s</small> / {s.avgUpS.toFixed(1)}<small> s</small></>
-              : <span className="dash">–</span>}</dd>
+            <dt>Average lowering</dt>
+            <dd className="num">{s.avgDownS !== null ? <>{s.avgDownS.toFixed(1)}<small> s</small></> : <span className="dash">–</span>}</dd>
+          </div>
+          <div>
+            <dt>Average standing up</dt>
+            <dd className="num">{s.avgUpS !== null ? <>{s.avgUpS.toFixed(1)}<small> s</small></> : <span className="dash">–</span>}</dd>
           </div>
         </dl>
       </section>
@@ -185,56 +193,7 @@ export function Summary({ record, previous, playback, progress, back, children }
                 metric={cfg.primaryMetric} faultLabel={label} onTime={setReplayT} />
             </section>
           )}
-
-          {analysis.rows.length > 0 && (
-            <>
-              {charts.length > 1 && (
-                <div className="chart-picker" role="group" aria-label="Show chart">
-                  {charts.map((c) => (
-                    <button key={c.id} className={c.id === shownChart ? "selected" : ""} aria-pressed={c.id === shownChart}
-                      onClick={() => setPickedChart(c.id)}>
-                      {c.faults > 0 && <i className="fault-dot" aria-label={`${c.faults} flagged`} />}{c.label}
-                    </button>
-                  ))}
-                </div>
-              )}
-              <div className={`chart-grid${record.trace.length > 1 ? " has-trace" : ""}`}>
-                {charts.map((c) => (
-                  <section key={c.id} className={`panel chart-panel${c.id === "trace" ? " trace-panel" : ""}${c.id === shownChart ? " shown" : ""}`}>{c.node}</section>
-                ))}
-              </div>
-
-              <details className="panel rep-table">
-                <summary>Rep-by-rep table</summary>
-                <div className="table-scroll">
-                  <table>
-                    <thead>
-                      <tr>
-                        <th className="num">Rep</th><th className="num">Down</th><th className="num">Up</th>
-                        {analysis.rules.map((r) => <th key={r.rule.id} className="num">{r.info.label}</th>)}
-                        <th>Result</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {analysis.rows.map((row) => (
-                        <tr key={row.label} className={playRep ? "clickable" : undefined}
-                          onClick={playRep && (() => playRep(row.label))}>
-                          <td className="num">{row.label}</td>
-                          <td className="num">{row.downS.toFixed(1)} s</td>
-                          <td className="num">{row.upS.toFixed(1)} s</td>
-                          {analysis.rules.map((r) => {
-                            const v = row.values[r.rule.id];
-                            return <td key={r.rule.id} className="num">{v === null ? <span className="dash">–</span> : r.info.unit === "°" ? `${Math.round(v)}°` : v.toFixed(2)}</td>;
-                          })}
-                          <td>{row.rep.faults.length ? row.rep.faults.map(label).join(", ") : "Clean"}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </details>
-            </>
-          )}
+          {analysis.rows.length > 0 && hasTrace && <section className="panel trace-wide">{charts[0].node}</section>}
         </div>
 
         <aside className="col-side">
@@ -272,6 +231,56 @@ export function Summary({ record, previous, playback, progress, back, children }
           {progress}
         </aside>
       </div>
+
+      {analysis.rows.length > 0 && (
+        <div className="set-charts">
+              {charts.length > 1 && (
+                <div className="chart-picker" role="group" aria-label="Show chart">
+                  {charts.map((c) => (
+                    <button key={c.id} className={c.id === shownChart ? "selected" : ""} aria-pressed={c.id === shownChart}
+                      onClick={() => setPickedChart(c.id)}>
+                      {c.faults > 0 && <i className="fault-dot" aria-label={`${c.faults} flagged`} />}{c.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+              <div className="chart-grid">
+                {charts.map((c) => (
+                  <section key={c.id} className={`panel chart-panel${c.id === "trace" ? " trace-panel" : tailOf(perRep.indexOf(c))}${c.id === shownChart ? " shown" : ""}`}>{c.node}</section>
+                ))}
+              </div>
+
+              <details className="panel rep-table">
+                <summary>Rep-by-rep table</summary>
+                <div className="table-scroll">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th className="num">Rep</th><th className="num">Down</th><th className="num">Up</th>
+                        {analysis.rules.map((r) => <th key={r.rule.id} className="num">{r.info.label}</th>)}
+                        <th>Result</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {analysis.rows.map((row) => (
+                        <tr key={row.label} className={playRep ? "clickable" : undefined}
+                          onClick={playRep && (() => playRep(row.label))}>
+                          <td className="num">{row.label}</td>
+                          <td className="num">{row.downS.toFixed(1)} s</td>
+                          <td className="num">{row.upS.toFixed(1)} s</td>
+                          {analysis.rules.map((r) => {
+                            const v = row.values[r.rule.id];
+                            return <td key={r.rule.id} className="num">{v === null ? <span className="dash">–</span> : r.info.unit === "°" ? `${Math.round(v)}°` : v.toFixed(2)}</td>;
+                          })}
+                          <td>{row.rep.faults.length ? row.rep.faults.map(label).join(", ") : "Clean"}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </details>
+        </div>
+      )}
     </main>
   );
 }

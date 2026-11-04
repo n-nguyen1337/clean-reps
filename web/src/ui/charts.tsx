@@ -9,16 +9,16 @@ const M = { top: 20, right: 8, bottom: 28, left: 48 };
 
 function useWidth() {
   const ref = useRef<HTMLDivElement>(null);
-  const [width, setWidth] = useState(520);
+  const [size, setSize] = useState({ width: 520, height: 0 });
   useLayoutEffect(() => {
     const el = ref.current;
     if (!el) return;
-    setWidth(el.clientWidth);
-    const ro = new ResizeObserver(([entry]) => setWidth(entry.contentRect.width));
+    setSize({ width: el.clientWidth, height: el.clientHeight });
+    const ro = new ResizeObserver(([entry]) => setSize({ width: entry.contentRect.width, height: entry.contentRect.height }));
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
-  return [ref, width] as const;
+  return [ref, size.width, size.height] as const;
 }
 
 function niceStep(span: number, count: number): number {
@@ -108,11 +108,11 @@ export function TraceChart({ trace, metric, rows, refs, cursor, onSeek }: {
   cursor?: number | null;
   onSeek?: (t: number) => void;
 }) {
-  const [ref, width] = useWidth();
+  const [ref, width, boxHeight] = useWidth();
   const [tip, setTip] = useState<Tip | null>(null);
   const [hover, setHover] = useState<number | null>(null);
   const info = metricInfo(metric);
-  const height = 220;
+  const height = Math.max(220, boxHeight); // grows when CSS gives its frame more room
 
   const pts = trace.map((p) => ({ t: p.t, v: p.metrics[metric] ?? null }))
     .filter((p): p is { t: number; v: number } => p.v !== null && !Number.isNaN(p.v));
@@ -228,17 +228,23 @@ export function RuleChart({ series, onSelect }: { series: RuleSeries; onSelect?:
   const better = faultSide === "above" ? "lower is better" : "higher is better";
   const flagged = points.filter((p) => p.faulted).length;
   // The limit's label goes to the end of the line that the data leaves clear.
-  const labelY = y(limit) - 9;
-  const labelBlocked = points.some((p, i) => p.value !== null && cx(i) > width - M.right - 90 && Math.abs(y(p.value) - labelY) < 16);
+  const drawn = points.flatMap((p, i) => p.value === null ? [] : [{ x: cx(i), y: y(p.value) }]);
+  const lineCrosses = (x0: number, x1: number) => drawn.some((a, i) => {
+    const b = drawn[i + 1] ?? a;
+    if (b.x < x0 || a.x > x1) return false;
+    const [lo, hi] = [Math.min(a.y, b.y), Math.max(a.y, b.y)];
+    return hi > y(limit) - 20 && lo < y(limit) + 2;
+  });
+  const labelAtStart = lineCrosses(width - M.right - 76, width - M.right) && !lineCrosses(M.left, M.left + 76);
 
   return (
     <Frame frameRef={ref} width={width} height={height} tip={tip}
-      title={`${info.label} per rep`} subtitle={`${better[0].toUpperCase()}${better.slice(1)}. ${faultSide === "above" ? "Above" : "Below"} the line: "${rule.cue}".`}
+      title={info.label} subtitle={`Per rep, ${better}. ${faultSide === "above" ? "Above" : "Below"} the line: "${rule.cue}".`}
       flag={flagged > 0 ? `${flagged} flagged` : undefined}>
       <YAxis ticks={dom.ticks} y={y} width={width} unit={info.unit} />
       <rect className="fault-zone" x={M.left} y={zoneTop} width={width - M.left - M.right} height={Math.max(zoneBottom - zoneTop, 0)} />
-      <RefLine y={y(limit)} width={width} label={`limit ${fmt(limit, info.unit)}`} tone="warn" atStart={labelBlocked} />
       <path d={d} className="series-line s1" />
+      <RefLine y={y(limit)} width={width} label={`limit ${fmt(limit, info.unit)}`} tone="warn" atStart={labelAtStart} />
       {points.map((p, i) => (
         <g key={p.label}>
           {showLabel(i) && <text className="axis-label" x={cx(i)} y={height - 8} textAnchor="middle">{p.label}</text>}

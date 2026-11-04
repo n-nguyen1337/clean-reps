@@ -263,7 +263,7 @@ export function LiveSession({ exercise, body, model, speaker, recordVideo, lab, 
           <span className="reps-label">{config.name} reps</span>
         </div>
         <div className="message">
-          {cue ? <p className={`cue ${cue.id === "good_rep" ? "good" : "warn"}`}>{cue.text}</p>
+          {cue ? <p className={`cue ${cue.id === "good_rep" ? "good" : "warn"}${cue.text.length > 20 ? " long" : ""}`}>{cue.text}</p>
             : prompt ? <p className="prompt"><b>{prompt}</b>{!update?.ready && <span>{config.cameraHint}</span>}</p>
               : verdict && <p className={`verdict ${verdict.tone}`}>{verdict.text}</p>}
         </div>

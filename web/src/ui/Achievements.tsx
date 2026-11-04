@@ -4,6 +4,7 @@ import {
 } from "../store/achievements";
 import { TIER_XP, type Level } from "../store/level";
 import type { SetRecord } from "../store/record";
+import { AchievementIcon } from "./AchievementIcon";
 
 const fmt = (n: number) => n.toLocaleString();
 const pctOf = (l: Level) => (l.xp - l.levelXp) / (l.nextXp - l.levelXp);
@@ -40,7 +41,7 @@ function Badge({ def, prog, onSelect }: { def: AchievementDef; prog: Progression
   return (
     <button className={`badge ${def.tier}${unlocked ? "" : " locked"}`} onClick={onSelect && (() => onSelect(def))}
       aria-label={`${secret ? "Secret achievement" : def.title}, ${unlocked ? "unlocked" : "locked"}`}>
-      <span className="badge-ring" aria-hidden="true">{secret ? "?" : def.emoji}</span>
+      <span className="badge-ring" aria-hidden="true">{secret ? "?" : <AchievementIcon emoji={def.emoji} />}</span>
       <b>{secret ? "???" : unbroken(def.title)}</b>
       {def.exercise && !secret && <small>{EXERCISES[def.exercise].name}</small>}
       {progress && <span className="meter" aria-hidden="true"><i style={{ width: `${(progress.value / progress.target) * 100}%` }} /></span>}
@@ -65,7 +66,7 @@ function AchievementSheet({ def, prog, sets, onOpen, onClose }: {
     <div className="sheet-backdrop" onClick={onClose}>
       <div className="sheet" role="dialog" aria-modal="true" aria-label={secret ? "Secret achievement" : def.title}
         onClick={(e) => e.stopPropagation()}>
-        <span className={`badge-ring big ${def.tier}${unlock ? "" : " locked"}`} aria-hidden="true">{secret ? "?" : def.emoji}</span>
+        <span className={`badge-ring big ${def.tier}${unlock ? "" : " locked"}`} aria-hidden="true">{secret ? "?" : <AchievementIcon emoji={def.emoji} />}</span>
         <h2>{secret ? "Secret achievement" : def.title}</h2>
         <p className="tier-line">
           {def.tier[0].toUpperCase() + def.tier.slice(1)} · {TIER_XP[def.tier]} XP
@@ -213,7 +214,7 @@ export function EarnedInSet({ xp, earned }: { xp: number; earned: AchievementDef
 function EarnedBadge({ def }: { def: AchievementDef }) {
   return (
     <div className={`badge ${def.tier}`}>
-      <span className="badge-ring" aria-hidden="true">{def.emoji}</span>
+      <span className="badge-ring" aria-hidden="true"><AchievementIcon emoji={def.emoji} /></span>
       <b>{unbroken(def.title)}</b>
       {def.exercise && <small>{EXERCISES[def.exercise].name}</small>}
     </div>
