@@ -50,6 +50,7 @@ export function FeedbackSheet({ source, set, model, onClose }: {
   useEffect(() => {
     const dialog = ref.current!;
     if (!dialog.open) dialog.showModal();
+    dialog.focus(); // the sheet, not the first score
   }, []);
 
   const field = <K extends keyof FeedbackAnswers>(key: K) => (value: FeedbackAnswers[K]) => setA((prev) => ({ ...prev, [key]: value }));
@@ -78,7 +79,7 @@ export function FeedbackSheet({ source, set, model, onClose }: {
   }
 
   return (
-    <dialog ref={ref} className="sheet survey" aria-labelledby="feedback-title"
+    <dialog ref={ref} className="sheet survey" tabIndex={-1} aria-labelledby="feedback-title"
       onCancel={(e) => { e.preventDefault(); close("later"); }}>
       <h2 id="feedback-title">How's cleanReps working for you?</h2>
       <p className="lede">Five quick questions, all optional. {set ? "This set's rep and fault counts are" : "Your device type is"} sent along with your answers, never video.</p>

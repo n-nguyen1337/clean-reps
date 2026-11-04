@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { Fragment, useMemo } from "react";
 import type { ExerciseConfig } from "../engine/exercise";
 import { EXERCISE_KEYS } from "../engine/exercises";
 import { ACHIEVEMENTS, type Progression } from "../store/achievements";
@@ -6,9 +6,10 @@ import { weeklyTotals, weekStreak } from "../store/progress";
 import type { SetRecord } from "../store/record";
 import type { Settings } from "../store/settings";
 import { LevelCard } from "./Achievements";
+import { ExerciseGlyph } from "./ExerciseGlyph";
 import { Logo } from "./Logo";
 import { RepStrip } from "./RepStrip";
-import { VIDEO_NOTE } from "./Shell";
+import { ICONS, VIDEO_NOTE } from "./Shell";
 
 const STEPS = [
   { title: "Pick an exercise", text: "Squats or push-ups." },
@@ -26,14 +27,14 @@ function relativeDay(d: Date, now: Date): string {
   return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
-function settingsLine(s: Settings, usesBuild: boolean): string {
+function settingsLine(s: Settings, usesBuild: boolean): string[] {
   const build = s.body.femur === "average" && s.body.torso === "average" ? "Average build" : "Custom build";
   return [
     usesBuild && build,
     s.voice ? "Voice on" : "Voice off",
     s.replay ? "Replay on" : "Replay off",
     s.model === "lite" ? "Lite model" : "Full model",
-  ].filter(Boolean).join(" · ");
+  ].filter((part): part is string => !!part);
 }
 
 const topFault = (set: SetRecord): string | null => {
@@ -89,10 +90,11 @@ function Totals({ sets, prog, now }: { sets: SetRecord[]; prog: Progression | nu
 
 function FirstRun() {
   return (
-    <section className="first-run">
-      <ul className="steps">
+    <section className="panel first-run">
+      <h2>Your first set</h2>
+      <ol className="steps">
         {STEPS.map((s) => <li key={s.title}><b>{s.title}</b><span>{s.text}</span></li>)}
-      </ul>
+      </ol>
     </section>
   );
 }
@@ -132,19 +134,22 @@ export function Home({ sets, prog, configs, exercise, onExercise, settings, onSt
             {EXERCISE_KEYS.map((k) => (
               <button key={k} className={`choice ${k === exercise ? "selected" : ""}`} role="radio"
                 aria-checked={k === exercise} onClick={() => onExercise(k)}>
-                <b>{configs[k].name}</b>
-                <span>{configs[k].cameraHint}</span>
+                <ExerciseGlyph exercise={k} />
+                <span className="choice-text"><b>{configs[k].name}</b><span>{configs[k].cameraHint}</span></span>
+                <i className="choice-mark" aria-hidden="true" />
               </button>
             ))}
           </div>
           <div className="next-foot">
             <a className="settings-summary" href="#/settings">
-              <span>{settingsLine(settings, usesBuild)}</span>
+              <span>{settingsLine(settings, usesBuild).map((part, i, all) => (
+                <Fragment key={part}><span className="nowrap">{part}{i < all.length - 1 && " ·"}</span>{" "}</Fragment>
+              ))}</span>
               <span className="text-link">Change</span>
             </a>
             <div className="start-bar">
               <button className="primary big" onClick={onStart}>Start {configs[exercise].name.toLowerCase()}</button>
-              <p className="start-note">{VIDEO_NOTE}</p>
+              <p className="start-note">{ICONS.lock}{VIDEO_NOTE}</p>
             </div>
           </div>
         </section>

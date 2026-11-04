@@ -11,7 +11,9 @@ export function Skeleton({ p, scale = 1 }: { p: Point[]; scale?: number }) {
       })}
       {p.map((_, i) => {
         const q = at(p, i + 11);
-        return q && <circle key={i} cx={q[0]} cy={q[1]} r={0.06 * scale} />;
+        const joint = i + 11;
+        const attached = SKELETON.some(([a, b]) => (a === joint && at(p, b)) || (b === joint && at(p, a)));
+        return q && attached && (joint < 17 || joint > 22) && <circle key={i} cx={q[0]} cy={q[1]} r={0.06 * scale} />;
       })}
     </g>
   );

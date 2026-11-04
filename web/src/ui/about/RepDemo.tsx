@@ -1,12 +1,21 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ExerciseConfig } from "../../engine/exercise";
 import { Skeleton } from "./PoseFigure";
-import { CROP_BOX, SQUAT } from "./squat";
+import { FH, FW, SQUAT } from "./squat";
 
 const FRAMES = SQUAT.frames;
 const LO = 40, HI = 180; // knee angle range of the trace, degrees
 const TICKS = [60, 90, 120, 150, 180];
 const y = (deg: number) => (1 - (deg - LO) / (HI - LO)) * 100;
+
+/** The space the figure moves through in this clip, so the stage has no dead area around it. */
+const FIGURE_BOX = (() => {
+  const pts = FRAMES.flatMap((f) => f.p).filter((q): q is [number, number] => q !== null);
+  const xs = pts.map((q) => q[0] * FW), ys = pts.map((q) => q[1] * FH);
+  const [x0, x1, y0, y1] = [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)];
+  const pad = 0.3;
+  return `${x0 - pad} ${y0 - pad} ${x1 - x0 + 2 * pad} ${y1 - y0 + 2 * pad}`;
+})();
 
 /** The knee angle over the clip, broken where tracking dropped out. */
 const LINE = (() => {
@@ -64,7 +73,7 @@ export function RepDemo({ config }: { config: ExerciseConfig }) {
   return (
     <div className="rep-demo">
       <div className="demo-stage">
-        <svg viewBox={CROP_BOX} role="img" aria-label={`Tracked skeleton at ${f.t.toFixed(1)} seconds`}>
+        <svg viewBox={FIGURE_BOX} role="img" aria-label={`Tracked skeleton at ${f.t.toFixed(1)} seconds`}>
           <Skeleton p={f.p} scale={1.4} />
         </svg>
       </div>

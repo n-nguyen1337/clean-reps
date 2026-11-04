@@ -121,6 +121,7 @@ function insights(config: ExerciseConfig, rows: RepRow[]): Insight[] {
     return out;
   }
 
+  const passed: string[] = [];
   for (const rule of config.rules) {
     const info = metricInfo(rule.metric);
     const measured = counted.filter((r) => r.values[rule.id] !== null).length;
@@ -130,8 +131,12 @@ function insights(config: ExerciseConfig, rows: RepRow[]): Insight[] {
     } else if (faulted * 2 >= counted.length) {
       out.push({ tone: "warn", text: `"${rule.cue}" on ${faulted} of ${counted.length} reps: your main thing to fix.` });
     } else if (faulted === 0) {
-      out.push({ tone: "good", text: `${info.label} stayed within the limit on every rep.` });
+      passed.push(info.label.toLowerCase());
     }
+  }
+  if (passed.length > 0) {
+    const named = [...new Set(passed)];
+    out.push({ tone: "good", text: `Within the limit on every rep: ${named.join(", ")}.` });
   }
 
   const bottoms = present(counted.map((r) => r.bottom));

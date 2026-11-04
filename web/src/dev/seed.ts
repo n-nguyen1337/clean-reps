@@ -12,9 +12,12 @@ const rand = (lo: number, hi: number) => lo + Math.random() * (hi - lo);
 
 /** A metric value just inside the rule's limits, or past them when faulted. */
 function ruleValue(rule: Rule, faulted: boolean): number {
-  if (rule.max !== null) return faulted ? rule.max + rand(3, 15) : rule.max - rand(3, 25);
-  if (rule.min !== null) return faulted ? rule.min - rand(3, 15) : rule.min + rand(3, 25);
-  return rand(0, 90);
+  const limit = rule.max ?? rule.min;
+  if (limit === null) return rand(0, 90);
+  // Degrees move in whole units; a ratio such as 0.8 moves in hundredths.
+  const unit = Math.abs(limit) < 5 ? Math.max(Math.abs(limit), 0.1) / 40 : 1;
+  if (rule.max !== null) return faulted ? rule.max + rand(3, 15) * unit : rule.max - rand(3, 25) * unit;
+  return faulted ? limit - rand(3, 15) * unit : limit + rand(3, 25) * unit;
 }
 
 function makeSet(exercise: string, started: Date, skill: number): SetRecord {

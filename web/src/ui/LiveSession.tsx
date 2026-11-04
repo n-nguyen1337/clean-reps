@@ -193,13 +193,21 @@ export function LiveSession({ exercise, body, model, speaker, recordVideo, lab, 
   }, [finishNow]); // only the flag: finish() is recreated on every render
 
   const { update, cue, lastRep, fps } = hud;
+  const faultNames = (rep: RepResult) => rep.faults
+    .map((id) => id === "partial" ? "partial rep" : config.rules.find((r) => r.id === id)?.cue ?? id).join(", ");
   let verdict: { text: string; tone: string } | null = null;
   if (lastRep) {
     verdict = isClean(lastRep)
       ? { text: `Rep ${lastRep.index}: clean`, tone: "good" }
       : lastRep.counted
-        ? { text: `Rep ${lastRep.index}: ${lastRep.faults.join(", ")}`, tone: "warn" }
-        : { text: `No rep: ${lastRep.faults.join(", ")}`, tone: "bad" };
+        ? { text: `Rep ${lastRep.index}: ${faultNames(lastRep)}`, tone: "warn" }
+        : { text: `No rep: ${faultNames(lastRep)}`, tone: "bad" };
+  }
+  // What to do next, until the first rep has happened.
+  let prompt: string | null = null;
+  if (status.kind === "running" && update) {
+    if (update.tracking && !update.ready) prompt = "Hold still in your start position";
+    else if (update.reps === 0 && !lastRep) prompt = update.ready ? "Ready. Start your first rep" : "Get your whole body in frame";
   }
 
   if (camera === "ask") {
@@ -217,17 +225,14 @@ export function LiveSession({ exercise, body, model, speaker, recordVideo, lab, 
         <canvas ref={canvasRef} />
       </div>
       {readyBlinks > 0 && <div key={readyBlinks} className="ready-blink" aria-hidden />}
-
-      <div className="hud-top">
-        <div className="reps">
-          <span className="reps-count">{update?.reps ?? 0}</span>
-          <span className="reps-label">{config.name} reps</span>
-        </div>
-        <div className="hud-right">
-          {update && !update.tracking && <span className="pill bad">Body not detected</span>}
-          <span className="pill">{fps.toFixed(0)} fps · {model}</span>
-        </div>
-      </div>
+      {update && !update.tracking && <span className="pill bad live-alert">Body not detected</span>}
+      {showMetrics && update && (
+        <span className="metrics">
+          {fps.toFixed(0)} fps · {model} · {update.phase} · {Object.entries(update.metrics)
+            .filter(([, v]) => v !== null && !Number.isNaN(v))
+            .map(([k, v]) => `${k} ${v!.toFixed(1)}`).join(" · ")}
+        </span>
+      )}
 
       {status.kind === "loading" && camera === "go" && (
         <div className="overlay-msg">
@@ -251,26 +256,20 @@ export function LiveSession({ exercise, body, model, speaker, recordVideo, lab, 
           </div>
         </div>
       )}
-      {status.kind === "running" && update?.tracking && !update.ready ? (
-        <p className="hint floating"><b>Hold still in your start position</b><br />{config.cameraHint}</p>
-      ) : status.kind === "running" && update?.reps === 0 && !lastRep && (
-        <p className="hint floating">{config.cameraHint}</p>
-      )}
 
-      {cue && <div className={`cue ${cue.id === "good_rep" ? "good" : "warn"}`}>{cue.text}</div>}
-
-      <div className="hud-bottom" hidden={status.kind === "error" /* the error has its own Back */}>
-        {verdict && <span className={`pill ${verdict.tone}`}>{verdict.text}</span>}
-        {showMetrics && update && (
-          <span className="metrics">
-            {update.phase} · {Object.entries(update.metrics)
-              .filter(([, v]) => v !== null && !Number.isNaN(v))
-              .map(([k, v]) => `${k} ${v!.toFixed(1)}`).join(" · ")}
-          </span>
-        )}
+      <div className="board" hidden={status.kind === "error" /* the error has its own Back */}>
+        <div className="reps">
+          <span className="reps-count">{update?.reps ?? 0}</span>
+          <span className="reps-label">{config.name} reps</span>
+        </div>
+        <div className="message">
+          {cue ? <p className={`cue ${cue.id === "good_rep" ? "good" : "warn"}${cue.text.length > 20 ? " long" : ""}`}>{cue.text}</p>
+            : prompt ? <p className={`prompt${update?.ready ? " solo" : ""}`}><b>{prompt}</b>{!update?.ready && <span>{config.cameraHint}</span>}</p>
+              : verdict && <p className={`verdict ${verdict.tone}${verdict.text.length > 20 ? " long" : ""}`}>{verdict.text}</p>}
+        </div>
         <div className="controls">
-          <button className="ghost" onClick={() => setShowMetrics((s) => !s)}>{showMetrics ? "Hide" : "Show"} metrics</button>
-          <button className="primary" disabled={finishing} onClick={finish}>Finish</button>
+          <button className="metrics-toggle" aria-pressed={showMetrics} onClick={() => setShowMetrics((s) => !s)}>Metrics</button>
+          <button className="finish" disabled={finishing} onClick={finish}>Finish</button>
         </div>
       </div>
     </div>

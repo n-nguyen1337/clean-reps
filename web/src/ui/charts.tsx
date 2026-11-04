@@ -1,24 +1,24 @@
 // Small hand-rolled SVG charts for the summary screen. Each chart measures its
 // container so text renders at real pixel sizes, and shows a tooltip on hover.
 
-import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { useId, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { metricInfo, type RepRow, type RuleSeries } from "../engine/analysis";
 import type { TracePoint } from "../engine/session";
 
-const M = { top: 22, right: 12, bottom: 26, left: 40 };
+const M = { top: 20, right: 8, bottom: 28, left: 48 };
 
 function useWidth() {
   const ref = useRef<HTMLDivElement>(null);
-  const [width, setWidth] = useState(520);
+  const [size, setSize] = useState({ width: 520, height: 0 });
   useLayoutEffect(() => {
     const el = ref.current;
     if (!el) return;
-    setWidth(el.clientWidth);
-    const ro = new ResizeObserver(([entry]) => setWidth(entry.contentRect.width));
+    setSize({ width: el.clientWidth, height: el.clientHeight });
+    const ro = new ResizeObserver(([entry]) => setSize({ width: entry.contentRect.width, height: entry.contentRect.height }));
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
-  return [ref, width] as const;
+  return [ref, size.width, size.height] as const;
 }
 
 function niceStep(span: number, count: number): number {
@@ -48,17 +48,24 @@ export const shortDate = (d: Date) => d.toLocaleDateString(undefined, { month: "
 
 interface Tip { x: number; y: number; content: ReactNode }
 
-function Frame({ title, subtitle, legend, height, tip, children, width, frameRef }: {
-  title: string; subtitle?: string; legend?: ReactNode; height: number; tip: Tip | null;
+function Frame({ title, subtitle, now, flag, legend, height, tip, children, width, frameRef }: {
+  title: string; subtitle?: string;
+  /** The latest value, set large beside the title. */
+  now?: string;
+  /** What this chart found, such as how many reps it flagged. */
+  flag?: string;
+  legend?: ReactNode; height: number; tip: Tip | null;
   children: ReactNode; width: number; frameRef: React.RefObject<HTMLDivElement | null>;
 }) {
   return (
     <figure className="chart">
       <figcaption>
         <b>{title}</b>
-        {subtitle && <span>{subtitle}</span>}
+        {subtitle && <span className="chart-sub">{subtitle}</span>}
+        {now && <span className="chart-now">{now}</span>}
+        {flag && <span className="chart-flag">{flag}</span>}
+        {legend && <span className="legend">{legend}</span>}
       </figcaption>
-      {legend && <div className="legend">{legend}</div>}
       <div className="chart-body" ref={frameRef}>
         <svg width={width} height={height} role="img" aria-label={title}>{children}</svg>
         {tip && (
@@ -83,11 +90,11 @@ function YAxis({ ticks, y, width, unit }: { ticks: number[]; y: (v: number) => n
 }
 
 /** Reference line across the plot with a label at its right end. */
-function RefLine({ y, width, label, tone }: { y: number; width: number; label: string; tone?: "warn" }) {
+function RefLine({ y, width, label, tone, atStart }: { y: number; width: number; label?: string; tone?: "warn"; atStart?: boolean }) {
   return (
     <g className={`ref ${tone ?? ""}`}>
       <line x1={M.left} x2={width - M.right} y1={y} y2={y} />
-      <text x={width - M.right - 4} y={y - 5} textAnchor="end">{label}</text>
+      {label && <text x={atStart ? M.left + 4 : width - M.right - 4} y={y - 5} textAnchor={atStart ? "start" : "end"}>{label}</text>}
     </g>
   );
 }
@@ -101,11 +108,11 @@ export function TraceChart({ trace, metric, rows, refs, cursor, onSeek }: {
   cursor?: number | null;
   onSeek?: (t: number) => void;
 }) {
-  const [ref, width] = useWidth();
+  const [ref, width, boxHeight] = useWidth();
   const [tip, setTip] = useState<Tip | null>(null);
   const [hover, setHover] = useState<number | null>(null);
   const info = metricInfo(metric);
-  const height = 220;
+  const height = Math.max(220, boxHeight); // grows when CSS gives its frame more room
 
   const pts = trace.map((p) => ({ t: p.t, v: p.metrics[metric] ?? null }))
     .filter((p): p is { t: number; v: number } => p.v !== null && !Number.isNaN(p.v));
@@ -144,7 +151,8 @@ export function TraceChart({ trace, metric, rows, refs, cursor, onSeek }: {
   return (
     <Frame frameRef={ref} width={width} height={height} tip={tip}
       title={`${info.label} over the set`}
-      subtitle={`Each shaded band is one rep. Dips below the lines count and pass depth.${onSeek ? " Tap to replay that moment." : ""}`}>
+      subtitle={`Each shaded band is one rep.${onSeek ? " Tap to replay that moment." : ""}`}
+      legend={refs.map((r) => <span key={r.label}><i className="swatch dash" />{r.label}</span>)}>
       <YAxis ticks={dom.ticks} y={y} width={width} unit={info.unit} />
       {rows.map((r) => {
         const faulted = r.rep.faults.length > 0;
@@ -157,13 +165,13 @@ export function TraceChart({ trace, metric, rows, refs, cursor, onSeek }: {
           </g>
         );
       })}
-      {refs.map((r) => <RefLine key={r.label} y={y(r.value)} width={width} label={r.label} tone={r.tone} />)}
       <g className="axis">
         {timeTicks.map((s) => (
           <text key={s} x={x(t0 + s)} y={height - 8} textAnchor="middle">{s}s</text>
         ))}
       </g>
       <path d={d} className="series-line s1" />
+      {refs.map((r) => <RefLine key={r.label} y={y(r.value)} width={width} tone={r.tone} />)}
       {cursor != null && cursor >= t0 && cursor <= t1 && (
         <line className="cursor" x1={x(cursor)} x2={x(cursor)} y1={M.top} y2={height - M.bottom} />
       )}
@@ -182,11 +190,19 @@ export function TraceChart({ trace, metric, rows, refs, cursor, onSeek }: {
 
 // ---------------------------------------------------------------------------
 
-/** Band layout shared by the per-rep charts. */
-function repBands(n: number, width: number) {
+/** Band layout shared by the per-rep charts. When every label can't fit, ticks skip along the counted reps,
+ *  so a partial rep's "P1" doesn't land among plain numbers. */
+function repBands(n: number, width: number, labels: string[] = []) {
   const band = (width - M.left - M.right) / Math.max(n, 1);
-  const every = Math.ceil(n / Math.max(1, Math.floor((width - M.left - M.right) / 28)));
-  return { band, cx: (i: number) => M.left + band * (i + 0.5), showLabel: (i: number) => i % every === 0 };
+  const every = Math.ceil(n / Math.max(1, Math.floor((width - M.left - M.right) / 24)));
+  const shown = new Set<number>();
+  let last = -Infinity;
+  labels.forEach((label, i) => {
+    if (every > 1 && (label.startsWith("P") || i - last < every)) return;
+    shown.add(i);
+    last = i;
+  });
+  return { band, cx: (i: number) => M.left + band * (i + 0.5), showLabel: (i: number) => shown.has(i) };
 }
 
 /** One rule's worst value per rep against its limit; flagged reps are marked. */
@@ -200,7 +216,7 @@ export function RuleChart({ series, onSelect }: { series: RuleSeries; onSelect?:
   if (values.length === 0) return null;
   const dom = niceDomain([...values, limit]);
   const y = (v: number) => M.top + (1 - (v - dom.lo) / (dom.hi - dom.lo)) * (height - M.top - M.bottom);
-  const { band, cx, showLabel } = repBands(points.length, width);
+  const { band, cx, showLabel } = repBands(points.length, width, points.map((p) => p.label));
 
   let d = "";
   points.forEach((p, i) => {
@@ -210,21 +226,31 @@ export function RuleChart({ series, onSelect }: { series: RuleSeries; onSelect?:
   const zoneTop = faultSide === "above" ? M.top : y(limit);
   const zoneBottom = faultSide === "above" ? y(limit) : height - M.bottom;
   const better = faultSide === "above" ? "lower is better" : "higher is better";
+  const flagged = points.filter((p) => p.faulted).length;
+  // The limit's label goes to the end of the line that the data leaves clear.
+  const drawn = points.flatMap((p, i) => p.value === null ? [] : [{ x: cx(i), y: y(p.value) }]);
+  const lineCrosses = (x0: number, x1: number) => drawn.some((a, i) => {
+    const b = drawn[i + 1] ?? a;
+    if (b.x < x0 || a.x > x1) return false;
+    const [lo, hi] = [Math.min(a.y, b.y), Math.max(a.y, b.y)];
+    return hi > y(limit) - 20 && lo < y(limit) + 2;
+  });
+  const labelAtStart = lineCrosses(width - M.right - 76, width - M.right) && !lineCrosses(M.left, M.left + 76);
 
   return (
     <Frame frameRef={ref} width={width} height={height} tip={tip}
-      title={`${info.label} per rep`} subtitle={`Worst point of each rep; ${better}. "${rule.cue}" when it crosses the line.`}>
+      title={info.label} subtitle={`Per rep, ${better}. ${faultSide === "above" ? "Above" : "Below"} the line: "${rule.cue}".`}
+      flag={flagged > 0 ? `${flagged} flagged` : undefined}>
       <YAxis ticks={dom.ticks} y={y} width={width} unit={info.unit} />
       <rect className="fault-zone" x={M.left} y={zoneTop} width={width - M.left - M.right} height={Math.max(zoneBottom - zoneTop, 0)} />
-      <RefLine y={y(limit)} width={width} label={`limit ${fmt(limit, info.unit)}`} tone="warn" />
-      <path d={d} className="series-line s1 faint" />
+      <path d={d} className="series-line s1" />
+      <RefLine y={y(limit)} width={width} label={`limit ${fmt(limit, info.unit)}`} tone="warn" atStart={labelAtStart} />
       {points.map((p, i) => (
         <g key={p.label}>
           {showLabel(i) && <text className="axis-label" x={cx(i)} y={height - 8} textAnchor="middle">{p.label}</text>}
           {p.value !== null && (
             <>
-              <circle className={`dot ${p.faulted ? "flagged" : "s1"}`} cx={cx(i)} cy={y(p.value)} r={p.faulted ? 6 : 5} />
-              {p.faulted && <text className="flag" x={cx(i)} y={y(p.value) - 11} textAnchor="middle">!</text>}
+              <circle className={`dot ${p.faulted ? "flagged" : "s1"}`} cx={cx(i)} cy={y(p.value)} r={p.faulted ? 5.5 : 4.5} />
               <circle cx={cx(i)} cy={y(p.value)} r={Math.max(12, Math.min(band / 2, 18))} fill="transparent"
                 className={onSelect ? "clickable" : undefined} onClick={onSelect && (() => onSelect(p.label))}
                 onPointerEnter={() => setTip({
@@ -257,7 +283,7 @@ export function TempoChart({ rows, onSelect }: { rows: RepRow[]; onSelect?: (lab
 
   const dom = niceDomain(rows.map((r) => r.downS + r.upS), 4, true);
   const y = (v: number) => M.top + (1 - v / dom.hi) * (height - M.top - M.bottom);
-  const { band, cx, showLabel } = repBands(rows.length, width);
+  const { band, cx, showLabel } = repBands(rows.length, width, rows.map((r) => r.label));
   const barW = Math.min(24, band * 0.6);
   const gap = 2;
 
@@ -305,6 +331,7 @@ export function TrendChart({ title, subtitle, points, unit, domain, refLine }: {
 }) {
   const [ref, width] = useWidth();
   const [tip, setTip] = useState<Tip | null>(null);
+  const fade = useId();
   const height = 180;
 
   const values = points.map((p) => p.value).filter((v): v is number => v !== null);
@@ -318,22 +345,34 @@ export function TrendChart({ title, subtitle, points, unit, domain, refLine }: {
   const every = Math.ceil(points.length / Math.max(1, Math.floor((width - M.left - M.right) / 56)));
 
   let d = "";
+  const drawn: number[] = [];
   points.forEach((p, i) => {
     if (p.value === null) return;
     d += `${d ? "L" : "M"}${cx(i).toFixed(1)},${y(p.value).toFixed(1)}`;
+    drawn.push(i);
   });
+  const base = height - M.bottom;
+  const area = `${d}L${cx(drawn[drawn.length - 1]).toFixed(1)},${base}L${cx(drawn[0]).toFixed(1)},${base}Z`;
 
   return (
-    <Frame frameRef={ref} width={width} height={height} tip={tip} title={title} subtitle={subtitle}>
+    <Frame frameRef={ref} width={width} height={height} tip={tip} title={title} subtitle={subtitle}
+      now={fmt(values[values.length - 1], unit)}>
+      <defs>
+        <linearGradient id={fade} x1="0" x2="0" y1="0" y2="1">
+          <stop offset="0" className="fade-from" />
+          <stop offset="1" className="fade-to" />
+        </linearGradient>
+      </defs>
       <YAxis ticks={dom.ticks} y={y} width={width} unit={unit} />
       {refLine && <RefLine y={y(refLine.value)} width={width} label={refLine.label} tone="warn" />}
+      <path d={area} className="series-area" fill={`url(#${fade})`} />
       <path d={d} className="series-line s1" />
       {points.map((p, i) => (
         <g key={p.key}>
           {i % every === 0 && <text className="axis-label" x={cx(i)} y={height - 8} textAnchor="middle">{shortDate(p.date)}</text>}
           {p.value !== null && (
             <>
-              <circle className="dot s1" cx={cx(i)} cy={y(p.value)} r={4} />
+              <circle className="dot s1" cx={cx(i)} cy={y(p.value)} r={i === drawn[drawn.length - 1] ? 5 : 3.5} />
               <circle cx={cx(i)} cy={y(p.value)} r={Math.max(12, Math.min(band / 2, 18))} fill="transparent"
                 onPointerEnter={() => setTip({
                   x: cx(i), y: y(p.value!),
@@ -370,7 +409,7 @@ export function WeeklyChart({ weeks }: { weeks: { start: Date; reps: number; set
         return (
           <g key={w.start.getTime()}>
             {i % every === 0 && <text className="axis-label" x={cx(i)} y={height - 8} textAnchor="middle">{shortDate(w.start)}</text>}
-            {w.reps > 0 && <path className="bar s1" d={topRounded(cx(i) - barW / 2, top, barW, y(0) - top, 4)} />}
+            {w.reps > 0 && <path className={`bar ${i === weeks.length - 1 ? "s1" : "past"}`} d={topRounded(cx(i) - barW / 2, top, barW, y(0) - top, 5)} />}
             <rect x={cx(i) - band / 2} y={M.top} width={band} height={height - M.top - M.bottom} fill="transparent"
               onPointerEnter={() => setTip({
                 x: cx(i), y: Math.min(top, y(0) - 4),
