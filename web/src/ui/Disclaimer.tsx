@@ -5,12 +5,12 @@ export function Disclaimer({ onAccept }: { onAccept: () => void }) {
   const ref = useRef<HTMLDialogElement>(null);
   useEffect(() => {
     const dialog = ref.current!;
-    dialog.autofocus = true; // focus the sheet, not its button, so a stray Enter can't accept
     if (!dialog.open) dialog.showModal();
+    dialog.focus(); // the sheet, not its button, so a stray Enter can't accept
   }, []);
 
   return (
-    <dialog ref={ref} className="sheet" aria-labelledby="disclaimer-title"
+    <dialog ref={ref} className="sheet" tabIndex={-1} aria-labelledby="disclaimer-title"
       onCancel={(e) => e.preventDefault() /* Escape doesn't count as accepting */}>
       <h2 id="disclaimer-title">Before you train</h2>
       <p className="lede">cleanReps gives general fitness feedback. It isn't medical advice, and it can't diagnose or prevent injury.</p>

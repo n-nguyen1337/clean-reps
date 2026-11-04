@@ -211,6 +211,7 @@ export function Player({ playback, rows, trace, metric, faultLabel, onTime, ref 
           {url && <video ref={videoRef} src={url} playsInline muted preload="auto" />}
           <canvas ref={canvasRef} width={width} height={height} />
         </div>
+        <span className="pill replay-time">{clock(t)} / {clock(end)}</span>
         <div className="replay-hud">
           {current ? <span className={`pill ${tone(current)}`}>{verdict(current)}</span> : <span />}
           {value !== null && (
@@ -228,7 +229,6 @@ export function Player({ playback, rows, trace, metric, faultLabel, onTime, ref 
         <button className="primary" onClick={toggle}>{playing ? "Pause" : "Play"}</button>
         <button className="ghost" onClick={() => step(1)} aria-label="Forward one frame" title="Forward one frame">{FRAME_NEXT}</button>
         <button className="ghost" disabled={!next} onClick={() => next && playRep(next)} aria-label="Next rep" title="Next rep">{NEXT_REP}</button>
-        <span className="replay-time">{clock(t)} / {clock(end)}</span>
       </div>
 
       <div className="replay-options">
@@ -238,7 +238,7 @@ export function Player({ playback, rows, trace, metric, faultLabel, onTime, ref 
           ))}
         </div>
         <label className="toggle">
-          <input type="checkbox" checked={loop} onChange={(e) => toggleLoop(e.target.checked)} />
+          <input type="checkbox" role="switch" checked={loop} onChange={(e) => toggleLoop(e.target.checked)} />
           Loop {active ? `rep ${active.label}` : "the rep you pick"}
         </label>
       </div>

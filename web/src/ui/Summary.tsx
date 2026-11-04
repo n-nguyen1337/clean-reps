@@ -132,7 +132,7 @@ export function Summary({ record, previous, playback, progress, back, children }
       id: "trace", label: "Whole set", faults: 0,
       node: <TraceChart trace={record.trace} metric={cfg.primaryMetric} rows={analysis.rows} refs={refs} cursor={replayT} onSeek={seek} />,
     }] : [],
-    ...charted.map((series) => ({
+    ...[...charted].sort((a, b) => (s.faults[b.rule.id] ?? 0) - (s.faults[a.rule.id] ?? 0)).map((series) => ({
       id: series.rule.id, label: series.rule.cue, faults: s.faults[series.rule.id] ?? 0,
       node: <RuleChart series={series} onSelect={playRep} />,
     })),

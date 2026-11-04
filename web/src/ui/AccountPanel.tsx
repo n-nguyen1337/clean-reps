@@ -29,7 +29,6 @@ export function AccountPanel() {
   if (account.status !== "signed-in") {
     return (
       <div className="account">
-        <p>Sign in to back up your history, sync it across devices, and get AI coaching. Optional: everything else works without an account.</p>
         <button disabled={busy || account.status === "loading"} onClick={act(account.signIn)}>
           {account.status === "loading" ? "Signing in…" : "Sign in with Google"}
         </button>

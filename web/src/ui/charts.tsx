@@ -5,7 +5,7 @@ import { useId, useLayoutEffect, useRef, useState, type ReactNode } from "react"
 import { metricInfo, type RepRow, type RuleSeries } from "../engine/analysis";
 import type { TracePoint } from "../engine/session";
 
-const M = { top: 20, right: 8, bottom: 28, left: 44 };
+const M = { top: 20, right: 8, bottom: 28, left: 48 };
 
 function useWidth() {
   const ref = useRef<HTMLDivElement>(null);
@@ -48,10 +48,12 @@ export const shortDate = (d: Date) => d.toLocaleDateString(undefined, { month: "
 
 interface Tip { x: number; y: number; content: ReactNode }
 
-function Frame({ title, subtitle, now, legend, height, tip, children, width, frameRef }: {
+function Frame({ title, subtitle, now, flag, legend, height, tip, children, width, frameRef }: {
   title: string; subtitle?: string;
   /** The latest value, set large beside the title. */
   now?: string;
+  /** What this chart found, such as how many reps it flagged. */
+  flag?: string;
   legend?: ReactNode; height: number; tip: Tip | null;
   children: ReactNode; width: number; frameRef: React.RefObject<HTMLDivElement | null>;
 }) {
@@ -61,6 +63,7 @@ function Frame({ title, subtitle, now, legend, height, tip, children, width, fra
         <b>{title}</b>
         {subtitle && <span className="chart-sub">{subtitle}</span>}
         {now && <span className="chart-now">{now}</span>}
+        {flag && <span className="chart-flag">{flag}</span>}
         {legend && <span className="legend">{legend}</span>}
       </figcaption>
       <div className="chart-body" ref={frameRef}>
@@ -87,11 +90,11 @@ function YAxis({ ticks, y, width, unit }: { ticks: number[]; y: (v: number) => n
 }
 
 /** Reference line across the plot with a label at its right end. */
-function RefLine({ y, width, label, tone }: { y: number; width: number; label?: string; tone?: "warn" }) {
+function RefLine({ y, width, label, tone, atStart }: { y: number; width: number; label?: string; tone?: "warn"; atStart?: boolean }) {
   return (
     <g className={`ref ${tone ?? ""}`}>
       <line x1={M.left} x2={width - M.right} y1={y} y2={y} />
-      {label && <text x={width - M.right - 4} y={y - 5} textAnchor="end">{label}</text>}
+      {label && <text x={atStart ? M.left + 4 : width - M.right - 4} y={y - 5} textAnchor={atStart ? "start" : "end"}>{label}</text>}
     </g>
   );
 }
@@ -223,14 +226,19 @@ export function RuleChart({ series, onSelect }: { series: RuleSeries; onSelect?:
   const zoneTop = faultSide === "above" ? M.top : y(limit);
   const zoneBottom = faultSide === "above" ? y(limit) : height - M.bottom;
   const better = faultSide === "above" ? "lower is better" : "higher is better";
+  const flagged = points.filter((p) => p.faulted).length;
+  // The limit's label goes to the end of the line that the data leaves clear.
+  const labelY = y(limit) - 9;
+  const labelBlocked = points.some((p, i) => p.value !== null && cx(i) > width - M.right - 90 && Math.abs(y(p.value) - labelY) < 16);
 
   return (
     <Frame frameRef={ref} width={width} height={height} tip={tip}
-      title={`${info.label} per rep`} subtitle={`${better[0].toUpperCase()}${better.slice(1)}. Past the line: "${rule.cue}".`}>
+      title={`${info.label} per rep`} subtitle={`${better[0].toUpperCase()}${better.slice(1)}. ${faultSide === "above" ? "Above" : "Below"} the line: "${rule.cue}".`}
+      flag={flagged > 0 ? `${flagged} flagged` : undefined}>
       <YAxis ticks={dom.ticks} y={y} width={width} unit={info.unit} />
       <rect className="fault-zone" x={M.left} y={zoneTop} width={width - M.left - M.right} height={Math.max(zoneBottom - zoneTop, 0)} />
-      <RefLine y={y(limit)} width={width} label={`limit ${fmt(limit, info.unit)}`} tone="warn" />
-      <path d={d} className="series-line s1 faint" />
+      <RefLine y={y(limit)} width={width} label={`limit ${fmt(limit, info.unit)}`} tone="warn" atStart={labelBlocked} />
+      <path d={d} className="series-line s1" />
       {points.map((p, i) => (
         <g key={p.label}>
           {showLabel(i) && <text className="axis-label" x={cx(i)} y={height - 8} textAnchor="middle">{p.label}</text>}

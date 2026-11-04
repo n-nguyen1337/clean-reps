@@ -264,12 +264,12 @@ export function LiveSession({ exercise, body, model, speaker, recordVideo, lab, 
         </div>
         <div className="message">
           {cue ? <p className={`cue ${cue.id === "good_rep" ? "good" : "warn"}`}>{cue.text}</p>
-            : prompt ? <p className="prompt"><b>{prompt}</b><span>{config.cameraHint}</span></p>
+            : prompt ? <p className="prompt"><b>{prompt}</b>{!update?.ready && <span>{config.cameraHint}</span>}</p>
               : verdict && <p className={`verdict ${verdict.tone}`}>{verdict.text}</p>}
         </div>
         <div className="controls">
           <button className="ghost" onClick={() => setShowMetrics((s) => !s)}>{showMetrics ? "Hide" : "Show"} metrics</button>
-          <button className="primary" disabled={finishing} onClick={finish}>Finish</button>
+          <button className="finish" disabled={finishing} onClick={finish}>Finish</button>
         </div>
       </div>
     </div>
