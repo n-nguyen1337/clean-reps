@@ -45,6 +45,7 @@ type Status = { kind: "loading" } | { kind: "running" } | { kind: "error"; error
 
 export function LiveSession({ exercise, body, model, speaker, recordVideo, lab, onDone, onCancel, finishNow }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const frameRef = useRef<HTMLCanvasElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const sessionRef = useRef(new Session(exercise));
   const recorderRef = useRef<SetRecorder | null>(null);
@@ -115,8 +116,11 @@ export function LiveSession({ exercise, body, model, speaker, recordVideo, lab, 
 
       const ex = createExercise(exercise, body);
       const smoother = new PoseSmoother();
+      // What's drawn tracks fast movement more closely than what's measured. It costs no visible jitter.
+      const shownSmoother = new PoseSmoother(1.5, 0.2);
       const cues = new CueManager(2, 4, speaker.say);
       const ctx = canvasRef.current!.getContext("2d")!;
+      const frameCtx = frameRef.current!.getContext("2d", { alpha: false })!;
       const start = performance.now();
       if (recordVideo) recorderRef.current = SetRecorder.start(stream, start, RECORD_CAP_S);
       let lastTs = -1, lastRep: RepResult | null = null, fps = 0, prev = start, wasReady = false;
@@ -130,8 +134,14 @@ export function LiveSession({ exercise, body, model, speaker, recordVideo, lab, 
         const t = ts / 1000;
 
         const { videoWidth: w, videoHeight: h } = video;
-        if (ctx.canvas.width !== w || ctx.canvas.height !== h) Object.assign(ctx.canvas, { width: w, height: h });
+        if (ctx.canvas.width !== w || ctx.canvas.height !== h) {
+          Object.assign(ctx.canvas, { width: w, height: h });
+          Object.assign(frameCtx.canvas, { width: w, height: h });
+        }
 
+        // Show the frame the model is about to read. The video keeps playing while it runs, so
+        // drawing over the live element would leave the skeleton behind the person when they move.
+        frameCtx.drawImage(video, 0, 0, w, h);
         const raw = toPoseFrame(landmarker.detectForVideo(video, ts), w, h, ts);
         labRef.current?.push(t, ts, raw, w, h);
         const pose = smoother.apply(raw);
@@ -145,8 +155,9 @@ export function LiveSession({ exercise, body, model, speaker, recordVideo, lab, 
         if (update.ready && !wasReady) setReadyBlinks((n) => n + 1);
         wasReady = update.ready;
         cues.push(update.cues, t);
-        if (recorderRef.current?.recording) posesRef.current.push(t, pose);
-        drawPose(ctx, pose);
+        const shown = shownSmoother.apply(raw);
+        if (recorderRef.current?.recording) posesRef.current.push(t, shown);
+        drawPose(ctx, shown);
 
         fps = 0.9 * fps + 0.1 * (1000 / Math.max(now - prev, 1));
         prev = now;
@@ -222,6 +233,7 @@ export function LiveSession({ exercise, body, model, speaker, recordVideo, lab, 
     <div className="live">
       <div className="stage">
         <video ref={videoRef} playsInline muted />
+        <canvas ref={frameRef} />
         <canvas ref={canvasRef} />
       </div>
       {readyBlinks > 0 && <div key={readyBlinks} className="ready-blink" aria-hidden />}
