@@ -43,6 +43,20 @@ export interface LabCapture {
 
 type Status = { kind: "loading" } | { kind: "running" } | { kind: "error"; error: CameraError };
 
+/** How long startup can take before the loading message says what it's waiting for. */
+const SLOW_START_MS = 10_000;
+
+/** Done once the video plays. iOS can leave play()'s promise unsettled, so the event counts too. */
+function startVideo(video: HTMLVideoElement): Promise<unknown> {
+  const failed = (err: unknown) => {
+    throw new Error(`The video wouldn't start: ${err instanceof Error ? err.message : String(err)}`);
+  };
+  return Promise.race([
+    video.play().catch(failed),
+    new Promise((resolve) => video.addEventListener("playing", resolve, { once: true })),
+  ]);
+}
+
 export function LiveSession({ exercise, body, model, speaker, recordVideo, lab, onDone, onCancel, finishNow }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const frameRef = useRef<HTMLCanvasElement>(null);
@@ -61,6 +75,7 @@ export function LiveSession({ exercise, body, model, speaker, recordVideo, lab, 
   // "check" until we know whether the browser will prompt; "ask" shows the explainer first.
   const [camera, setCamera] = useState<"check" | "ask" | "go">("check");
   const [attempt, setAttempt] = useState(0);
+  const [waitingOn, setWaitingOn] = useState("");
 
   useEffect(() => {
     let live = true;
@@ -77,6 +92,18 @@ export function LiveSession({ exercise, body, model, speaker, recordVideo, lab, 
     let frameHandle = 0;
     let landmarker: Awaited<ReturnType<typeof createLandmarker>> | null = null;
 
+    // Name what startup is stuck on, instead of an endless "loading".
+    const pending = new Set(["camera access", "the pose model"]);
+    const track = <T,>(label: string, step: Promise<T>) => {
+      pending.add(label);
+      return step.finally(() => pending.delete(label));
+    };
+    const begun = performance.now();
+    setWaitingOn("");
+    const watchdog = setInterval(() => {
+      if (performance.now() - begun > SLOW_START_MS) setWaitingOn([...pending].join(" and "));
+    }, 1000);
+
     const requestWakeLock = async () => {
       try {
         wakeLock = await navigator.wakeLock?.request("screen");
@@ -91,25 +118,29 @@ export function LiveSession({ exercise, body, model, speaker, recordVideo, lab, 
         // mediaDevices is missing outside a secure context (plain http on a LAN address).
         if (!navigator.mediaDevices) throw new DOMException("Camera needs HTTPS", "SecurityError");
         [stream, landmarker] = await Promise.all([
-          navigator.mediaDevices.getUserMedia({
+          track("camera access", navigator.mediaDevices.getUserMedia({
             video: { facingMode: "user", width: { ideal: 1280 }, height: { ideal: 720 } },
             audio: false,
-          }),
-          createLandmarker(model),
+          })),
+          track("the pose model", createLandmarker(model)),
         ]);
+        rememberCamera();
+        if (cancelled) {
+          stream.getTracks().forEach((t) => t.stop());
+          landmarker.close();
+          return;
+        }
+        const video = videoRef.current!;
+        video.srcObject = stream;
+        await track("the video to start", startVideo(video));
       } catch (err) {
+        clearInterval(watchdog);
         if (!cancelled) setStatus({ kind: "error", error: describeStartError(err) });
         return;
       }
-      rememberCamera();
-      if (cancelled) {
-        stream.getTracks().forEach((t) => t.stop());
-        landmarker.close();
-        return;
-      }
+      if (cancelled) return;
+      clearInterval(watchdog);
       const video = videoRef.current!;
-      video.srcObject = stream;
-      await video.play();
       await requestWakeLock();
       document.addEventListener("visibilitychange", onVisible);
       setStatus({ kind: "running" });
@@ -190,6 +221,7 @@ export function LiveSession({ exercise, body, model, speaker, recordVideo, lab, 
 
     return () => {
       cancelled = true;
+      clearInterval(watchdog);
       const video = videoRef.current;
       if (video && "cancelVideoFrameCallback" in video) video.cancelVideoFrameCallback(frameHandle);
       cancelAnimationFrame(frameHandle);
@@ -265,7 +297,9 @@ export function LiveSession({ exercise, body, model, speaker, recordVideo, lab, 
       {status.kind === "loading" && camera === "go" && (
         <div className="overlay-msg">
           <p>Starting camera and loading the pose model…</p>
-          <p className="hint">{config.cameraHint}</p>        </div>
+          <p className="hint">{config.cameraHint}</p>
+          {waitingOn && <p className="hint">Still waiting for {waitingOn}.</p>}
+        </div>
       )}
       {status.kind === "error" && (
         <div className="overlay-msg">
