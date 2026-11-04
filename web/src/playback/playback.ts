@@ -4,11 +4,22 @@
 // unless named as video times.
 
 import type { RepRow } from "../engine/analysis";
-import { NUM_LANDMARKS, type PoseFrame } from "../engine/pose";
+import { NUM_LANDMARKS, type DrawablePose } from "../engine/pose";
 import type { TracePoint } from "../engine/session";
 
 /** Recording stops after this long; the analysis keeps running. */
 export const RECORD_CAP_S = 4 * 60;
+
+/**
+ * How much later a pose is time-stamped than its picture appears in the
+ * recording, since the frame reaches the page after the camera took it. The
+ * replay looks this far ahead to find the pose from the picture on screen.
+ * Measured on an iPhone at 14-26 ms; `tools/tune_skeleton.py --skew` measures
+ * a clip from another device.
+ */
+export const POSE_STAMP_LAG_S = 0.018;
+/** Poses further apart than this aren't blended: something was missed between them. */
+const MAX_BLEND_S = 0.1;
 
 export interface Recording {
   video: Blob;
@@ -33,17 +44,14 @@ export function pickMimeType(isSupported: (type: string) => boolean): string | n
   return MIME_TYPES.find(isSupported) ?? null;
 }
 
-const STRIDE = NUM_LANDMARKS * 3; // x, y, visibility
+const STRIDE = NUM_LANDMARKS * 3; // x, y, opacity
 
-/** Read-only pose for drawing: image coordinates and visibility only. */
-export class PoseView {
+/** Read-only pose for drawing. */
+export class PoseView implements DrawablePose {
   constructor(private readonly data: Float32Array) {}
 
   img(i: number): Float32Array { return this.data.subarray(i * 3, i * 3 + 2); }
-
-  visible(...ids: number[]): boolean {
-    return ids.every((i) => this.data[i * 3 + 2] >= 0.5);
-  }
+  opacity(i: number): number { return this.data[i * 3 + 2]; }
 }
 
 /** Every processed frame's pose, packed into growable typed arrays (about 12 KB a second at 30 fps). */
@@ -53,7 +61,7 @@ export class PoseTrack {
   length = 0;
 
   /** Add a frame at set time `t`. A null pose is kept as a gap, so nothing is drawn for it. */
-  push(t: number, pose: PoseFrame | null): void {
+  push(t: number, pose: DrawablePose | null): void {
     if (this.length === this.times.length) {
       const times = new Float64Array(this.times.length * 2);
       const data = new Float32Array(this.data.length * 2);
@@ -64,8 +72,8 @@ export class PoseTrack {
     const o = this.length * STRIDE;
     if (pose) {
       for (let i = 0; i < NUM_LANDMARKS; i++) {
-        const [x, y] = pose.img(i);
-        this.data.set([x, y, pose.visibility[i]], o + i * 3);
+        const [x, y] = pose.img(i) as Float64Array;
+        this.data.set([x, y, pose.opacity(i)], o + i * 3);
       }
     } else {
       this.data.fill(0, o, o + STRIDE);
@@ -73,7 +81,11 @@ export class PoseTrack {
     this.times[this.length++] = t;
   }
 
-  /** The latest frame at or before `t`, or null if there is none within `maxGapS`. */
+  /**
+   * The pose at `t`, blended between the frames either side so the skeleton
+   * doesn't step against a video with its own frame times. Null if no frame at
+   * or before `t` is within `maxGapS`.
+   */
   at(t: number, maxGapS = 0.25): PoseView | null {
     let lo = 0, hi = this.length - 1, found = -1;
     while (lo <= hi) {
@@ -81,7 +93,20 @@ export class PoseTrack {
       if (this.times[mid] <= t) { found = mid; lo = mid + 1; } else hi = mid - 1;
     }
     if (found < 0 || t - this.times[found] > maxGapS) return null;
-    return new PoseView(this.data.subarray(found * STRIDE, (found + 1) * STRIDE));
+    const before = this.data.subarray(found * STRIDE, (found + 1) * STRIDE);
+    const span = found + 1 < this.length ? this.times[found + 1] - this.times[found] : Infinity;
+    const f = (t - this.times[found]) / span;
+    if (f === 0 || span > MAX_BLEND_S) return new PoseView(before);
+
+    const after = this.data.subarray((found + 1) * STRIDE, (found + 2) * STRIDE);
+    const blended = before.slice();
+    for (let i = 0; i < NUM_LANDMARKS; i++) {
+      if (before[i * 3 + 2] === 0 || after[i * 3 + 2] === 0) continue; // a missing pose has no position to blend with
+      blended[i * 3] += f * (after[i * 3] - before[i * 3]);
+      blended[i * 3 + 1] += f * (after[i * 3 + 1] - before[i * 3 + 1]);
+      blended[i * 3 + 2] += f * (after[i * 3 + 2] - before[i * 3 + 2]);
+    }
+    return new PoseView(blended);
   }
 }
 

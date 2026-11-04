@@ -2,13 +2,15 @@ import { useEffect, useRef, useState } from "react";
 import { isClean, type Body, type Cue, type ExerciseUpdate, type RepResult } from "../engine/exercise";
 import { createExercise } from "../engine/exercises";
 import { CueManager, type Speaker } from "../engine/feedback";
-import { PoseSmoother } from "../engine/pose";
+import { SKELETON_SETTINGS } from "../engine/filters";
+import { PoseSmoother, SkeletonSmoother } from "../engine/pose";
 import { Session, type SessionRecord } from "../engine/session";
 import { LandmarkLog } from "../playback/lab";
 import { PoseTrack, RECORD_CAP_S, type Playback, type Recording } from "../playback/playback";
 import { SetRecorder } from "../playback/recorder";
 import { createLandmarker, toPoseFrame, type ModelVariant } from "../pose/landmarker";
 import { cameraPermission, describeStartError, rememberCamera, type CameraError } from "../store/consent";
+import { DelayedFrames } from "./delayedFrames";
 import { CameraExplainer } from "./Disclaimer";
 import { drawPose } from "./overlay";
 
@@ -19,7 +21,7 @@ interface Props {
   speaker: Speaker;
   /** Record the set for replay on the summary screen. */
   recordVideo: boolean;
-  /** Lab mode: keep the raw landmarks so the summary can export them. */
+  /** Lab mode: keep the skeleton data and frame timings so the summary can export them. */
   lab?: boolean;
   onDone: (record: SessionRecord, playback: Playback | null, lab: LabCapture | null) => void;
   /** Leave before the set started: the camera explainer's "Not now", or Back after an error. */
@@ -43,6 +45,20 @@ export interface LabCapture {
 
 type Status = { kind: "loading" } | { kind: "running" } | { kind: "error"; error: CameraError };
 
+/** How long startup can take before the loading message says what it's waiting for. */
+const SLOW_START_MS = 10_000;
+
+/** Done once the video plays. iOS can leave play()'s promise unsettled, so the event counts too. */
+function startVideo(video: HTMLVideoElement): Promise<unknown> {
+  const failed = (err: unknown) => {
+    throw new Error(`The video wouldn't start: ${err instanceof Error ? err.message : String(err)}`);
+  };
+  return Promise.race([
+    video.play().catch(failed),
+    new Promise((resolve) => video.addEventListener("playing", resolve, { once: true })),
+  ]);
+}
+
 export function LiveSession({ exercise, body, model, speaker, recordVideo, lab, onDone, onCancel, finishNow }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const frameRef = useRef<HTMLCanvasElement>(null);
@@ -61,6 +77,7 @@ export function LiveSession({ exercise, body, model, speaker, recordVideo, lab, 
   // "check" until we know whether the browser will prompt; "ask" shows the explainer first.
   const [camera, setCamera] = useState<"check" | "ask" | "go">("check");
   const [attempt, setAttempt] = useState(0);
+  const [waitingOn, setWaitingOn] = useState("");
 
   useEffect(() => {
     let live = true;
@@ -77,6 +94,18 @@ export function LiveSession({ exercise, body, model, speaker, recordVideo, lab, 
     let frameHandle = 0;
     let landmarker: Awaited<ReturnType<typeof createLandmarker>> | null = null;
 
+    // Name what startup is stuck on, instead of an endless "loading".
+    const pending = new Set(["camera access", "the pose model"]);
+    const track = <T,>(label: string, step: Promise<T>) => {
+      pending.add(label);
+      return step.finally(() => pending.delete(label));
+    };
+    const begun = performance.now();
+    setWaitingOn("");
+    const watchdog = setInterval(() => {
+      if (performance.now() - begun > SLOW_START_MS) setWaitingOn([...pending].join(" and "));
+    }, 1000);
+
     const requestWakeLock = async () => {
       try {
         wakeLock = await navigator.wakeLock?.request("screen");
@@ -91,41 +120,46 @@ export function LiveSession({ exercise, body, model, speaker, recordVideo, lab, 
         // mediaDevices is missing outside a secure context (plain http on a LAN address).
         if (!navigator.mediaDevices) throw new DOMException("Camera needs HTTPS", "SecurityError");
         [stream, landmarker] = await Promise.all([
-          navigator.mediaDevices.getUserMedia({
+          track("camera access", navigator.mediaDevices.getUserMedia({
             video: { facingMode: "user", width: { ideal: 1280 }, height: { ideal: 720 } },
             audio: false,
-          }),
-          createLandmarker(model),
+          })),
+          track("the pose model", createLandmarker(model)),
         ]);
+        rememberCamera();
+        if (cancelled) {
+          stream.getTracks().forEach((t) => t.stop());
+          landmarker.close();
+          return;
+        }
+        const video = videoRef.current!;
+        video.srcObject = stream;
+        await track("the video to start", startVideo(video));
       } catch (err) {
+        clearInterval(watchdog);
         if (!cancelled) setStatus({ kind: "error", error: describeStartError(err) });
         return;
       }
-      rememberCamera();
-      if (cancelled) {
-        stream.getTracks().forEach((t) => t.stop());
-        landmarker.close();
-        return;
-      }
+      if (cancelled) return;
+      clearInterval(watchdog);
       const video = videoRef.current!;
-      video.srcObject = stream;
-      await video.play();
       await requestWakeLock();
       document.addEventListener("visibilitychange", onVisible);
       setStatus({ kind: "running" });
 
       const ex = createExercise(exercise, body);
       const smoother = new PoseSmoother();
-      // What's drawn tracks fast movement more closely than what's measured. It costs no visible jitter.
-      const shownSmoother = new PoseSmoother(1.5, 0.2);
+      // What's drawn is smoothed with frames the engine hasn't waited for, so the two filters differ.
+      const shownSmoother = new SkeletonSmoother();
       const cues = new CueManager(2, 4, speaker.say);
       const ctx = canvasRef.current!.getContext("2d")!;
-      const frameCtx = frameRef.current!.getContext("2d", { alpha: false })!;
+      const picture = new DelayedFrames(frameRef.current!.getContext("2d", { alpha: false })!, SKELETON_SETTINGS.ahead);
       const start = performance.now();
       if (recordVideo) recorderRef.current = SetRecorder.start(stream, start, RECORD_CAP_S);
       let lastTs = -1, lastRep: RepResult | null = null, fps = 0, prev = start, wasReady = false;
+      let lastPresented: number | null = null;
 
-      const onFrame = () => {
+      const onFrame = (_: number, meta?: VideoFrameCallbackMetadata) => {
         if (cancelled || !landmarker) return;
         const now = performance.now();
         // VIDEO mode requires strictly increasing timestamps.
@@ -134,16 +168,16 @@ export function LiveSession({ exercise, body, model, speaker, recordVideo, lab, 
         const t = ts / 1000;
 
         const { videoWidth: w, videoHeight: h } = video;
-        if (ctx.canvas.width !== w || ctx.canvas.height !== h) {
-          Object.assign(ctx.canvas, { width: w, height: h });
-          Object.assign(frameCtx.canvas, { width: w, height: h });
-        }
 
-        // Show the frame the model is about to read. The video keeps playing while it runs, so
-        // drawing over the live element would leave the skeleton behind the person when they move.
-        frameCtx.drawImage(video, 0, 0, w, h);
-        const raw = toPoseFrame(landmarker.detectForVideo(video, ts), w, h, ts);
-        labRef.current?.push(t, ts, raw, w, h);
+        // Keep the frame the model is about to read, and put up the one from a few frames ago with
+        // its pose below. The video keeps playing while the model runs, so drawing over the live
+        // element would leave the skeleton behind the person, and the frames since smooth the pose.
+        const copyStart = performance.now();
+        picture.push(video, w, h);
+        const detectStart = performance.now();
+        const result = landmarker.detectForVideo(video, ts);
+        const detectEnd = performance.now();
+        const raw = toPoseFrame(result, w, h, ts);
         const pose = smoother.apply(raw);
         const update = ex.update(pose, t);
         sessionRef.current.sample(t, update.metrics);
@@ -155,9 +189,23 @@ export function LiveSession({ exercise, body, model, speaker, recordVideo, lab, 
         if (update.ready && !wasReady) setReadyBlinks((n) => n + 1);
         wasReady = update.ready;
         cues.push(update.cues, t);
-        const shown = shownSmoother.apply(raw);
-        if (recorderRef.current?.recording) posesRef.current.push(t, shown);
-        drawPose(ctx, shown);
+        const drawStart = performance.now();
+        const shown = shownSmoother.apply(raw, ts, Math.max(w, h));
+        if (shown) {
+          if (recorderRef.current?.recording) posesRef.current.push(shown.timestampMs / 1000, shown.pose);
+          drawPose(ctx, shown.pose, { width: w, height: h });
+        }
+
+        const presented = meta?.presentedFrames ?? null;
+        labRef.current?.push(t, ts, raw, w, h, {
+          copyMs: detectStart - copyStart,
+          detectMs: detectEnd - detectStart,
+          drawMs: performance.now() - drawStart,
+          ageMs: meta?.captureTime === undefined ? null : now - meta.captureTime,
+          dropped: presented === null || lastPresented === null ? null : Math.max(presented - lastPresented - 1, 0),
+        });
+        if (shown) labRef.current?.setShown(shown.timestampMs, shown.pose);
+        lastPresented = presented;
 
         fps = 0.9 * fps + 0.1 * (1000 / Math.max(now - prev, 1));
         prev = now;
@@ -174,6 +222,7 @@ export function LiveSession({ exercise, body, model, speaker, recordVideo, lab, 
 
     return () => {
       cancelled = true;
+      clearInterval(watchdog);
       const video = videoRef.current;
       if (video && "cancelVideoFrameCallback" in video) video.cancelVideoFrameCallback(frameHandle);
       cancelAnimationFrame(frameHandle);
@@ -249,7 +298,9 @@ export function LiveSession({ exercise, body, model, speaker, recordVideo, lab, 
       {status.kind === "loading" && camera === "go" && (
         <div className="overlay-msg">
           <p>Starting camera and loading the pose model…</p>
-          <p className="hint">{config.cameraHint}</p>        </div>
+          <p className="hint">{config.cameraHint}</p>
+          {waitingOn && <p className="hint">Still waiting for {waitingOn}.</p>}
+        </div>
       )}
       {status.kind === "error" && (
         <div className="overlay-msg">

@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AVERAGE_BODY, type RepResult } from "../../engine/exercise";
 import { createExercise } from "../../engine/exercises";
 import { PoseFrame, PoseSmoother } from "../../engine/pose";
-import { clipName, LandmarkLog, labEnabled, labExport, labFiles } from "../lab";
+import { clipName, LandmarkLog, labEnabled, labExport, labFiles, labTimings } from "../lab";
 
 function memoryStorage() {
   const items = new Map<string, string>();
@@ -59,6 +59,39 @@ describe("labExport", () => {
       reps: [{ bottom_s: 1.234568, counted: true, faults: ["depth"] }] });
     expect(out.video).toBeNull();
     expect(out.model).toBe("lite");
+  });
+
+  it("adds what was drawn and the frame timings, keeping the raw pose", () => {
+    const log = new LandmarkLog("lite", 60);
+    log.push(0.1, 100, pose(5), 720, 1280, { copyMs: 1.26, detectMs: 24.04, drawMs: 0.84, ageMs: 18.55, dropped: 2 });
+    log.push(0.2, 200, null, 720, 1280, { copyMs: 1, detectMs: 30, drawMs: 1, ageMs: null, dropped: null });
+    log.push(0.3, 300, null, 720, 1280, { copyMs: 3, detectMs: 40, drawMs: 2, ageMs: null, dropped: 1 });
+    // The drawn pose arrives a couple of frames after its own frame.
+    log.setShown(100, { img: () => [1.23456789, 2.5], opacity: () => 0.876 });
+    log.setShown(200, null);
+    const out = labExport({ exercise: "squat", body: AVERAGE_BODY, reps: [], log, recording: null, videoFile: null });
+
+    expect(out.overlay.beta).toBeGreaterThan(0);
+    expect(out.frames[0].pose!.image[0][0]).toBe(5);
+    expect(out.frames[0].shown).toHaveLength(33);
+    expect(out.frames[0].shown![0]).toEqual([1.23, 2.5, 0.88]);
+    expect(out.frames[0]).toMatchObject({ copy_ms: 1.3, detect_ms: 24, draw_ms: 0.8, age_ms: 18.6, dropped: 2 });
+    expect(out.frames[1]).toEqual({ t: 0.2, ts: 200, pose: null, copy_ms: 1, detect_ms: 30, draw_ms: 1, age_ms: null, dropped: null });
+    expect(out.frames[2]).not.toHaveProperty("shown");
+    expect(labTimings(log)).toEqual({ copyMs: 1.26, detectMs: 30, drawMs: 1, dropped: 3 });
+  });
+
+  it("reports no timings for a log without them", () => {
+    const log = new LandmarkLog("lite", 60);
+    log.push(0, 0, pose(1), 720, 1280);
+    expect(labTimings(log)).toEqual({ copyMs: null, detectMs: null, drawMs: null, dropped: null });
+  });
+
+  it("ignores a drawn pose for a frame past the cap", () => {
+    const log = new LandmarkLog("lite", 1);
+    log.push(2, 2000, pose(1), 720, 1280);
+    log.setShown(2000, { img: () => [1, 1], opacity: () => 1 });
+    expect(log.frames).toHaveLength(0);
   });
 
   it("names the video and puts it first", () => {

@@ -37,6 +37,8 @@ def import_export(path: Path, out: Path, person: str | None, split: str | None, 
     notes = []
 
     labels, engine = data.pop("labels"), data.pop("engine")
+    for frame in data["frames"]:
+        frame.pop("shown", None)  # recomputable from the raw pose, and these caches get committed
     cache = out / f"{name}.landmarks.json.gz"
     write_json(cache, {"source": "browser", **data})
     notes.append(f"{cache.name}: {len(data['frames'])} frames, {data['model']} model")

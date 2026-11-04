@@ -1,7 +1,7 @@
 import { SKELETON } from "../../engine/pose";
 import { at, type Point } from "./squat";
 
-/** The tracked skeleton, drawn the way the live view draws it: white bones, joints in the accent. */
+/** The tracked skeleton, drawn the way the live view draws it (LOOK in ui/overlay.ts): white bones, joints in the accent. */
 export function Skeleton({ p, scale = 1 }: { p: Point[]; scale?: number }) {
   return (
     <g className="skeleton">
@@ -13,7 +13,7 @@ export function Skeleton({ p, scale = 1 }: { p: Point[]; scale?: number }) {
         const q = at(p, i + 11);
         const joint = i + 11;
         const attached = SKELETON.some(([a, b]) => (a === joint && at(p, b)) || (b === joint && at(p, a)));
-        return q && attached && (joint < 17 || joint > 22) && <circle key={i} cx={q[0]} cy={q[1]} r={0.06 * scale} />;
+        return q && attached && (joint < 17 || (joint > 22 && joint < 29)) && <circle key={i} cx={q[0]} cy={q[1]} r={0.05 * scale} strokeWidth={0.024 * scale} />;
       })}
     </g>
   );

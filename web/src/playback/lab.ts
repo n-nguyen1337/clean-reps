@@ -1,9 +1,11 @@
-// Lab capture for threshold tuning (PLAN-tuning.md): with lab mode on, a set
-// keeps its raw landmarks, and the summary can export them with the video and
-// the engine's verdicts as draft labels. Turn on with ?lab=1, off with ?lab=0.
+// Lab capture for tuning thresholds (PLAN-tuning.md) and the skeleton's smoothing
+// (tools/tune_skeleton.py): with lab mode on, a set keeps its raw landmarks, what
+// was drawn and how long each frame took, and the summary can export them with the
+// video and the engine's verdicts as draft labels. Turn on with ?lab=1, off with ?lab=0.
 
 import type { Body, RepResult } from "../engine/exercise";
-import type { PoseFrame } from "../engine/pose";
+import { SKELETON_SETTINGS } from "../engine/filters";
+import { NUM_LANDMARKS, type DrawablePose, type PoseFrame } from "../engine/pose";
 import type { ModelVariant } from "../pose/landmarker";
 import type { Recording } from "./playback";
 
@@ -22,13 +24,29 @@ export function labEnabled(search = location.search): boolean {
   }
 }
 
+/** How a frame went, to tell a slow device from a laggy filter. */
+export interface FrameTiming {
+  /** Copying the camera frame into the frame buffer and putting a buffered one on screen. */
+  copyMs: number;
+  /** Running the pose model. */
+  detectMs: number;
+  /** Smoothing and drawing the skeleton. */
+  drawMs: number;
+  /** From camera capture to this frame's callback, where the browser reports it. */
+  ageMs: number | null;
+  /** Camera frames skipped since the last processed one, where the browser reports it. */
+  dropped: number | null;
+}
+
 interface Frame {
   t: number;
   ts: number;
   pose: PoseFrame | null;
+  shown?: DrawablePose | null;
+  timing?: FrameTiming;
 }
 
-/** The raw (unsmoothed) pose of every processed frame, as the model returned it. */
+/** The raw (unsmoothed) pose of every processed frame, as the model returned it, with what was drawn for it. */
 export class LandmarkLog {
   readonly frames: Frame[] = [];
   width = 0;
@@ -36,21 +54,46 @@ export class LandmarkLog {
 
   constructor(readonly model: ModelVariant, private readonly capS: number) {}
 
-  push(t: number, ts: number, pose: PoseFrame | null, width: number, height: number): void {
+  push(t: number, ts: number, pose: PoseFrame | null, width: number, height: number, timing?: FrameTiming): void {
     if (t > this.capS) return;
     [this.width, this.height] = [width, height];
-    this.frames.push({ t, ts, pose });
+    this.frames.push({ t, ts, pose, ...(timing && { timing }) });
   }
+
+  /** What was drawn for the frame stamped `ts`. It comes a few frames after the frame itself. */
+  setShown(ts: number, shown: DrawablePose | null): void {
+    const frame = this.frames.findLast((f) => f.ts === ts);
+    if (frame) frame.shown = shown;
+  }
+}
+
+const median = (values: number[]) => values.length ? [...values].sort((a, b) => a - b)[values.length >> 1] : null;
+
+/** The set's frame timings at a glance. Null when nothing was recorded. */
+export function labTimings(log: LandmarkLog) {
+  const timings = log.frames.flatMap((f) => f.timing ?? []);
+  return {
+    copyMs: median(timings.map((f) => f.copyMs)),
+    detectMs: median(timings.map((f) => f.detectMs)),
+    drawMs: median(timings.map((f) => f.drawMs)),
+    dropped: timings.some((f) => f.dropped !== null) ? timings.reduce((sum, f) => sum + (f.dropped ?? 0), 0) : null,
+  };
 }
 
 const round = (v: number) => Math.round(v * DECIMALS) / DECIMALS;
 const rows = (flat: Float64Array) => Array.from({ length: flat.length / 3 }, (_, i) =>
   [round(flat[i * 3]), round(flat[i * 3 + 1]), round(flat[i * 3 + 2])]);
+const tenth = (v: number) => Math.round(v * 10) / 10;
+const cents = (v: number) => Math.round(v * 100) / 100;
+/** As drawn: [x, y, opacity] per joint, in fewer digits since it's only ever looked at. */
+const shownRows = (pose: DrawablePose) => Array.from({ length: NUM_LANDMARKS }, (_, i) =>
+  [cents(pose.img(i)[0]), cents(pose.img(i)[1]), cents(pose.opacity(i))]);
 
 /**
  * The export's JSON. `frames` uses the parity fixture layout, so the Python
- * tools can replay it. `labels` is the engine's verdict per rep, to be
- * corrected by hand into the clip's label sidecar.
+ * tools can replay it, plus what was drawn and the frame's timings. `labels`
+ * is the engine's verdict per rep, to be corrected by hand into the clip's
+ * label sidecar.
  */
 export function labExport({ exercise, body, reps, log, recording, videoFile, now = new Date() }: {
   exercise: string; body: Body; reps: RepResult[]; log: LandmarkLog;
@@ -66,6 +109,7 @@ export function labExport({ exercise, body, reps, log, recording, videoFile, now
     body,
     width: log.width,
     height: log.height,
+    overlay: SKELETON_SETTINGS,
     // Set time at video time 0 is about offsetS; endS minus the video's duration is more exact.
     video: recording && videoFile && { file: videoFile, mimeType: recording.mimeType, offsetS: recording.offsetS, endS: recording.endS },
     labels: {
@@ -77,9 +121,14 @@ export function labExport({ exercise, body, reps, log, recording, videoFile, now
     },
     engine: reps.map((r) => ({ counted: r.counted, index: r.index, start_s: r.startS, bottom_s: r.bottomS,
       end_s: r.endS, faults: r.faults, extremes: r.extremes })),
-    frames: log.frames.map(({ t, ts, pose }) => ({
+    frames: log.frames.map(({ t, ts, pose, shown, timing }) => ({
       t, ts,
       pose: pose && { image: rows(pose.image), world: rows(pose.world), visibility: Array.from(pose.visibility, round) },
+      ...(shown && { shown: shownRows(shown) }),
+      ...(timing && {
+        copy_ms: tenth(timing.copyMs), detect_ms: tenth(timing.detectMs), draw_ms: tenth(timing.drawMs),
+        age_ms: timing.ageMs === null ? null : tenth(timing.ageMs), dropped: timing.dropped,
+      }),
     })),
   };
 }

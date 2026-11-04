@@ -4,7 +4,7 @@
 import { useEffect, useImperativeHandle, useRef, useState, type KeyboardEvent, type PointerEvent, type Ref } from "react";
 import { metricInfo, type RepRow } from "../engine/analysis";
 import type { TracePoint } from "../engine/session";
-import { alignOffset, RECORD_CAP_S, repAt, traceValueAt, type Playback } from "../playback/playback";
+import { alignOffset, POSE_STAMP_LAG_S, RECORD_CAP_S, repAt, traceValueAt, type Playback } from "../playback/playback";
 import { drawPose } from "./overlay";
 
 export interface PlayerHandle {
@@ -107,7 +107,7 @@ export function Player({ playback, rows, trace, metric, faultLabel, onTime, ref 
       if (fixingDuration) return;
       lastMedia = mediaTime;
       const now = mediaTime + offsetS;
-      drawPose(ctx, poses.at(now));
+      drawPose(ctx, poses.at(now + POSE_STAMP_LAG_S), { width, height });
       setT(now);
       const rep = activeRef.current;
       if (rep && !video.paused && now >= rep.rep.endS + PAD_S) {
@@ -209,7 +209,7 @@ export function Player({ playback, rows, trace, metric, faultLabel, onTime, ref 
       <div className="replay-view" style={{ aspectRatio: `${width} / ${height}` }}>
         <div className="stage">
           {url && <video ref={videoRef} src={url} playsInline muted preload="auto" />}
-          <canvas ref={canvasRef} width={width} height={height} />
+          <canvas ref={canvasRef} />
         </div>
         <span className="pill replay-time">{clock(t)} / {clock(end)}</span>
         <div className="replay-hud">

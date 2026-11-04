@@ -1,14 +1,15 @@
 import { useState } from "react";
 import type { SessionRecord } from "../engine/session";
-import { labFiles, saveFiles } from "../playback/lab";
+import { labFiles, labTimings, saveFiles } from "../playback/lab";
 import type { LabCapture } from "./LiveSession";
 
 type State = { kind: "idle" } | { kind: "busy" } | { kind: "done"; text: string } | { kind: "error"; text: string };
 
-/** Lab mode only: save the set's video, raw landmarks and draft labels for threshold tuning. */
+/** Lab mode only: save the set's video, skeleton data and draft labels for tuning. */
 export function LabExport({ record, capture }: { record: SessionRecord; capture: LabCapture }) {
   const [state, setState] = useState<State>({ kind: "idle" });
   const { log, recording } = capture;
+  const { copyMs, detectMs, drawMs, dropped } = labTimings(log);
 
   const exportClip = async () => {
     setState({ kind: "busy" });
@@ -26,11 +27,15 @@ export function LabExport({ record, capture }: { record: SessionRecord; capture:
   return (
     <div className="lab-export">
       <button className="ghost" disabled={state.kind === "busy" || log.frames.length === 0} onClick={exportClip}>
-        {state.kind === "busy" ? "Preparing…" : "Export clip for tuning"}
+        {state.kind === "busy" ? "Preparing…" : "Export video and skeleton"}
       </button>
       <p className="hint small">
         Lab mode: {log.frames.length} frames · {log.model} model
         {recording ? ` · ${(recording.video.size / 1e6).toFixed(1)} MB video` : " · no video"}
+        {detectMs !== null && ` · model ${detectMs.toFixed(0)} ms`}
+        {copyMs !== null && ` · frame copy ${copyMs.toFixed(0)} ms`}
+        {drawMs !== null && ` · skeleton ${drawMs.toFixed(0)} ms`}
+        {dropped !== null && ` · ${dropped} camera frames dropped`}
       </p>
       {state.kind === "done" && <p className="hint small">{state.text}</p>}
       {state.kind === "error" && <p className="error">{state.text}</p>}
