@@ -6,9 +6,10 @@ import { weeklyTotals, weekStreak } from "../store/progress";
 import type { SetRecord } from "../store/record";
 import type { Settings } from "../store/settings";
 import { LevelCard } from "./Achievements";
+import { ExerciseGlyph } from "./ExerciseGlyph";
 import { Logo } from "./Logo";
 import { RepStrip } from "./RepStrip";
-import { VIDEO_NOTE } from "./Shell";
+import { ICONS, VIDEO_NOTE } from "./Shell";
 
 const STEPS = [
   { title: "Pick an exercise", text: "Squats or push-ups." },
@@ -89,10 +90,11 @@ function Totals({ sets, prog, now }: { sets: SetRecord[]; prog: Progression | nu
 
 function FirstRun() {
   return (
-    <section className="first-run">
-      <ul className="steps">
+    <section className="panel first-run">
+      <h2>How it works</h2>
+      <ol className="steps">
         {STEPS.map((s) => <li key={s.title}><b>{s.title}</b><span>{s.text}</span></li>)}
-      </ul>
+      </ol>
     </section>
   );
 }
@@ -132,8 +134,9 @@ export function Home({ sets, prog, configs, exercise, onExercise, settings, onSt
             {EXERCISE_KEYS.map((k) => (
               <button key={k} className={`choice ${k === exercise ? "selected" : ""}`} role="radio"
                 aria-checked={k === exercise} onClick={() => onExercise(k)}>
-                <b>{configs[k].name}</b>
-                <span>{configs[k].cameraHint}</span>
+                <ExerciseGlyph exercise={k} />
+                <span className="choice-text"><b>{configs[k].name}</b><span>{configs[k].cameraHint}</span></span>
+                <i className="choice-mark" aria-hidden="true" />
               </button>
             ))}
           </div>
@@ -144,7 +147,7 @@ export function Home({ sets, prog, configs, exercise, onExercise, settings, onSt
             </a>
             <div className="start-bar">
               <button className="primary big" onClick={onStart}>Start {configs[exercise].name.toLowerCase()}</button>
-              <p className="start-note">{VIDEO_NOTE}</p>
+              <p className="start-note">{ICONS.lock}{VIDEO_NOTE}</p>
             </div>
           </div>
         </section>

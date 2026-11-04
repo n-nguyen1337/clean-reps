@@ -1,11 +1,11 @@
 // Small hand-rolled SVG charts for the summary screen. Each chart measures its
 // container so text renders at real pixel sizes, and shows a tooltip on hover.
 
-import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { useId, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { metricInfo, type RepRow, type RuleSeries } from "../engine/analysis";
 import type { TracePoint } from "../engine/session";
 
-const M = { top: 22, right: 12, bottom: 26, left: 40 };
+const M = { top: 20, right: 8, bottom: 28, left: 44 };
 
 function useWidth() {
   const ref = useRef<HTMLDivElement>(null);
@@ -48,17 +48,21 @@ export const shortDate = (d: Date) => d.toLocaleDateString(undefined, { month: "
 
 interface Tip { x: number; y: number; content: ReactNode }
 
-function Frame({ title, subtitle, legend, height, tip, children, width, frameRef }: {
-  title: string; subtitle?: string; legend?: ReactNode; height: number; tip: Tip | null;
+function Frame({ title, subtitle, now, legend, height, tip, children, width, frameRef }: {
+  title: string; subtitle?: string;
+  /** The latest value, set large beside the title. */
+  now?: string;
+  legend?: ReactNode; height: number; tip: Tip | null;
   children: ReactNode; width: number; frameRef: React.RefObject<HTMLDivElement | null>;
 }) {
   return (
     <figure className="chart">
       <figcaption>
         <b>{title}</b>
-        {subtitle && <span>{subtitle}</span>}
+        {subtitle && <span className="chart-sub">{subtitle}</span>}
+        {now && <span className="chart-now">{now}</span>}
+        {legend && <span className="legend">{legend}</span>}
       </figcaption>
-      {legend && <div className="legend">{legend}</div>}
       <div className="chart-body" ref={frameRef}>
         <svg width={width} height={height} role="img" aria-label={title}>{children}</svg>
         {tip && (
@@ -157,13 +161,13 @@ export function TraceChart({ trace, metric, rows, refs, cursor, onSeek }: {
           </g>
         );
       })}
-      {refs.map((r) => <RefLine key={r.label} y={y(r.value)} width={width} label={r.label} tone={r.tone} />)}
       <g className="axis">
         {timeTicks.map((s) => (
           <text key={s} x={x(t0 + s)} y={height - 8} textAnchor="middle">{s}s</text>
         ))}
       </g>
       <path d={d} className="series-line s1" />
+      {refs.map((r) => <RefLine key={r.label} y={y(r.value)} width={width} label={r.label} tone={r.tone} />)}
       {cursor != null && cursor >= t0 && cursor <= t1 && (
         <line className="cursor" x1={x(cursor)} x2={x(cursor)} y1={M.top} y2={height - M.bottom} />
       )}
@@ -213,7 +217,7 @@ export function RuleChart({ series, onSelect }: { series: RuleSeries; onSelect?:
 
   return (
     <Frame frameRef={ref} width={width} height={height} tip={tip}
-      title={`${info.label} per rep`} subtitle={`Worst point of each rep; ${better}. "${rule.cue}" when it crosses the line.`}>
+      title={`${info.label} per rep`} subtitle={`Worst point per rep, ${better}. Past the line: "${rule.cue}".`}>
       <YAxis ticks={dom.ticks} y={y} width={width} unit={info.unit} />
       <rect className="fault-zone" x={M.left} y={zoneTop} width={width - M.left - M.right} height={Math.max(zoneBottom - zoneTop, 0)} />
       <RefLine y={y(limit)} width={width} label={`limit ${fmt(limit, info.unit)}`} tone="warn" />
@@ -223,8 +227,7 @@ export function RuleChart({ series, onSelect }: { series: RuleSeries; onSelect?:
           {showLabel(i) && <text className="axis-label" x={cx(i)} y={height - 8} textAnchor="middle">{p.label}</text>}
           {p.value !== null && (
             <>
-              <circle className={`dot ${p.faulted ? "flagged" : "s1"}`} cx={cx(i)} cy={y(p.value)} r={p.faulted ? 6 : 5} />
-              {p.faulted && <text className="flag" x={cx(i)} y={y(p.value) - 11} textAnchor="middle">!</text>}
+              <circle className={`dot ${p.faulted ? "flagged" : "s1"}`} cx={cx(i)} cy={y(p.value)} r={p.faulted ? 5.5 : 4.5} />
               <circle cx={cx(i)} cy={y(p.value)} r={Math.max(12, Math.min(band / 2, 18))} fill="transparent"
                 className={onSelect ? "clickable" : undefined} onClick={onSelect && (() => onSelect(p.label))}
                 onPointerEnter={() => setTip({
@@ -305,6 +308,7 @@ export function TrendChart({ title, subtitle, points, unit, domain, refLine }: {
 }) {
   const [ref, width] = useWidth();
   const [tip, setTip] = useState<Tip | null>(null);
+  const fade = useId();
   const height = 180;
 
   const values = points.map((p) => p.value).filter((v): v is number => v !== null);
@@ -318,22 +322,34 @@ export function TrendChart({ title, subtitle, points, unit, domain, refLine }: {
   const every = Math.ceil(points.length / Math.max(1, Math.floor((width - M.left - M.right) / 56)));
 
   let d = "";
+  const drawn: number[] = [];
   points.forEach((p, i) => {
     if (p.value === null) return;
     d += `${d ? "L" : "M"}${cx(i).toFixed(1)},${y(p.value).toFixed(1)}`;
+    drawn.push(i);
   });
+  const base = height - M.bottom;
+  const area = `${d}L${cx(drawn[drawn.length - 1]).toFixed(1)},${base}L${cx(drawn[0]).toFixed(1)},${base}Z`;
 
   return (
-    <Frame frameRef={ref} width={width} height={height} tip={tip} title={title} subtitle={subtitle}>
+    <Frame frameRef={ref} width={width} height={height} tip={tip} title={title} subtitle={subtitle}
+      now={fmt(values[values.length - 1], unit)}>
+      <defs>
+        <linearGradient id={fade} x1="0" x2="0" y1="0" y2="1">
+          <stop offset="0" className="fade-from" />
+          <stop offset="1" className="fade-to" />
+        </linearGradient>
+      </defs>
       <YAxis ticks={dom.ticks} y={y} width={width} unit={unit} />
       {refLine && <RefLine y={y(refLine.value)} width={width} label={refLine.label} tone="warn" />}
+      <path d={area} className="series-area" fill={`url(#${fade})`} />
       <path d={d} className="series-line s1" />
       {points.map((p, i) => (
         <g key={p.key}>
           {i % every === 0 && <text className="axis-label" x={cx(i)} y={height - 8} textAnchor="middle">{shortDate(p.date)}</text>}
           {p.value !== null && (
             <>
-              <circle className="dot s1" cx={cx(i)} cy={y(p.value)} r={4} />
+              <circle className="dot s1" cx={cx(i)} cy={y(p.value)} r={i === drawn[drawn.length - 1] ? 5 : 3.5} />
               <circle cx={cx(i)} cy={y(p.value)} r={Math.max(12, Math.min(band / 2, 18))} fill="transparent"
                 onPointerEnter={() => setTip({
                   x: cx(i), y: y(p.value!),
@@ -370,7 +386,7 @@ export function WeeklyChart({ weeks }: { weeks: { start: Date; reps: number; set
         return (
           <g key={w.start.getTime()}>
             {i % every === 0 && <text className="axis-label" x={cx(i)} y={height - 8} textAnchor="middle">{shortDate(w.start)}</text>}
-            {w.reps > 0 && <path className="bar s1" d={topRounded(cx(i) - barW / 2, top, barW, y(0) - top, 4)} />}
+            {w.reps > 0 && <path className={`bar ${i === weeks.length - 1 ? "s1" : "past"}`} d={topRounded(cx(i) - barW / 2, top, barW, y(0) - top, 5)} />}
             <rect x={cx(i) - band / 2} y={M.top} width={band} height={height - M.top - M.bottom} fill="transparent"
               onPointerEnter={() => setTip({
                 x: cx(i), y: Math.min(top, y(0) - 4),

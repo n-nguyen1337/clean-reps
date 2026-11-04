@@ -198,9 +198,11 @@ export function Summary({ record, previous, playback, progress, back, children }
                   ))}
                 </div>
               )}
-              {charts.map((c) => (
-                <section key={c.id} className={`panel chart-panel${c.id === shownChart ? " shown" : ""}`}>{c.node}</section>
-              ))}
+              <div className={`chart-grid${record.trace.length > 1 ? " has-trace" : ""}`}>
+                {charts.map((c) => (
+                  <section key={c.id} className={`panel chart-panel${c.id === "trace" ? " trace-panel" : ""}${c.id === shownChart ? " shown" : ""}`}>{c.node}</section>
+                ))}
+              </div>
 
               <details className="panel rep-table">
                 <summary>Rep-by-rep table</summary>

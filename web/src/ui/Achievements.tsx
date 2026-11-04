@@ -145,7 +145,7 @@ export function AchievementBoard({ prog, sets, onOpen, onBack }: {
   const count = ACHIEVEMENTS.filter((d) => prog.unlocked[d.id]).length;
 
   return (
-    <main className="page">
+    <main className="page achievements">
       <a className="back-link" href="#/progress" onClick={(e) => { e.preventDefault(); onBack(); }}>‹ Progress</a>
       <h1>Achievements</h1>
       <LevelCard level={prog.level} unlocked={count} />

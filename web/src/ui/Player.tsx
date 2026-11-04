@@ -18,6 +18,14 @@ const PAD_S = 0.3; // lead-in and lead-out around a rep
 const FRAME_S = 1 / 30;
 const SPEEDS = [0.25, 0.5, 1];
 
+const icon = (path: string) => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={path} /></svg>
+);
+const PREV_REP = icon("M6 5v14M19 6l-9 6 9 6z");
+const NEXT_REP = icon("M18 5v14M5 6l9 6-9 6z");
+const FRAME_BACK = icon("m15 6-6 6 6 6");
+const FRAME_NEXT = icon("m9 6 6 6-6 6");
+
 const tone = (row: RepRow) => (!row.rep.counted ? "bad" : row.rep.faults.length ? "warn" : "good");
 const clock = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
 
@@ -215,11 +223,11 @@ export function Player({ playback, rows, trace, metric, faultLabel, onTime, ref 
         onScrub={(target) => { select(null); seekTo(target); }} />
 
       <div className="replay-controls">
-        <button className="ghost" disabled={!prev} onClick={() => prev && playRep(prev)} aria-label="Previous rep" title="Previous rep">⏮</button>
-        <button className="ghost" onClick={() => step(-1)} aria-label="Back one frame" title="Back one frame">‹</button>
+        <button className="ghost" disabled={!prev} onClick={() => prev && playRep(prev)} aria-label="Previous rep" title="Previous rep">{PREV_REP}</button>
+        <button className="ghost" onClick={() => step(-1)} aria-label="Back one frame" title="Back one frame">{FRAME_BACK}</button>
         <button className="primary" onClick={toggle}>{playing ? "Pause" : "Play"}</button>
-        <button className="ghost" onClick={() => step(1)} aria-label="Forward one frame" title="Forward one frame">›</button>
-        <button className="ghost" disabled={!next} onClick={() => next && playRep(next)} aria-label="Next rep" title="Next rep">⏭</button>
+        <button className="ghost" onClick={() => step(1)} aria-label="Forward one frame" title="Forward one frame">{FRAME_NEXT}</button>
+        <button className="ghost" disabled={!next} onClick={() => next && playRep(next)} aria-label="Next rep" title="Next rep">{NEXT_REP}</button>
         <span className="replay-time">{clock(t)} / {clock(end)}</span>
       </div>
 
