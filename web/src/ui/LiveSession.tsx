@@ -265,7 +265,7 @@ export function LiveSession({ exercise, body, model, speaker, recordVideo, lab, 
         <div className="message">
           {cue ? <p className={`cue ${cue.id === "good_rep" ? "good" : "warn"}${cue.text.length > 20 ? " long" : ""}`}>{cue.text}</p>
             : prompt ? <p className="prompt"><b>{prompt}</b>{!update?.ready && <span>{config.cameraHint}</span>}</p>
-              : verdict && <p className={`verdict ${verdict.tone}`}>{verdict.text}</p>}
+              : verdict && <p className={`verdict ${verdict.tone}${verdict.text.length > 20 ? " long" : ""}`}>{verdict.text}</p>}
         </div>
         <div className="controls">
           <button className="ghost" onClick={() => setShowMetrics((s) => !s)}>{showMetrics ? "Hide" : "Show"} metrics</button>

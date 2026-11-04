@@ -62,7 +62,7 @@ export function Shell({ route, startLabel, onStart, children }: {
       </nav>
       <header className="topbar">
         <p className="crumbs">
-          {CRUMBS[route.page].map((c, i, all) => i < all.length - 1
+          {CRUMBS[route.page].length > 1 && CRUMBS[route.page].map((c, i, all) => i < all.length - 1
             ? <span key={c}><a href={routeHref(TABS.find((t) => t.label === c)!.route)}>{c}</a> / </span>
             : <b key={c}>{c}</b>)}
         </p>

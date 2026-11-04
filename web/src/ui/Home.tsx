@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { Fragment, useMemo } from "react";
 import type { ExerciseConfig } from "../engine/exercise";
 import { EXERCISE_KEYS } from "../engine/exercises";
 import { ACHIEVEMENTS, type Progression } from "../store/achievements";
@@ -27,14 +27,14 @@ function relativeDay(d: Date, now: Date): string {
   return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
-function settingsLine(s: Settings, usesBuild: boolean): string {
+function settingsLine(s: Settings, usesBuild: boolean): string[] {
   const build = s.body.femur === "average" && s.body.torso === "average" ? "Average build" : "Custom build";
   return [
     usesBuild && build,
     s.voice ? "Voice on" : "Voice off",
     s.replay ? "Replay on" : "Replay off",
     s.model === "lite" ? "Lite model" : "Full model",
-  ].filter(Boolean).join(" · ");
+  ].filter((part): part is string => !!part);
 }
 
 const topFault = (set: SetRecord): string | null => {
@@ -142,7 +142,9 @@ export function Home({ sets, prog, configs, exercise, onExercise, settings, onSt
           </div>
           <div className="next-foot">
             <a className="settings-summary" href="#/settings">
-              <span>{settingsLine(settings, usesBuild)}</span>
+              <span>{settingsLine(settings, usesBuild).map((part, i, all) => (
+                <Fragment key={part}><span className="nowrap">{part}{i < all.length - 1 && " ·"}</span>{" "}</Fragment>
+              ))}</span>
               <span className="text-link">Change</span>
             </a>
             <div className="start-bar">

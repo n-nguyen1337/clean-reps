@@ -8,9 +8,10 @@ export interface DrawablePose {
   visible(...ids: number[]): boolean;
 }
 
-const BONE_WIDTH = 3; // CSS pixels
-const BONE_HALO = 5.5;
-const JOINT_RADIUS = 4;
+const BONE_WIDTH = 4; // CSS pixels
+const BONE_HALO = 7.5;
+const JOINT_RADIUS = 5;
+const isHand = (i: number) => i >= 17 && i <= 22; // fingers crowd into a blob at the wrist, and no rule reads them
 
 /** Canvas pixels per on-screen pixel, so the skeleton looks the same on a phone, a laptop and in the replay. */
 function canvasScale(canvas: HTMLCanvasElement): number {
@@ -24,7 +25,7 @@ export function drawPose(ctx: CanvasRenderingContext2D, pose: DrawablePose | nul
   const scale = canvasScale(ctx.canvas);
   ctx.lineCap = "round";
   // A dark halo first, so the bones stay readable against sand and sky.
-  for (const [width, color] of [[BONE_HALO, "rgba(16,18,17,0.4)"], [BONE_WIDTH, "rgba(238,241,236,0.92)"]] as const) {
+  for (const [width, color] of [[BONE_HALO, "rgba(16,18,17,0.55)"], [BONE_WIDTH, "rgba(238,241,236,0.92)"]] as const) {
     ctx.lineWidth = width * scale;
     ctx.strokeStyle = color;
     for (const [a, b] of SKELETON) {
@@ -37,7 +38,7 @@ export function drawPose(ctx: CanvasRenderingContext2D, pose: DrawablePose | nul
   }
   ctx.fillStyle = "#b2dc78";
   for (let i = 11; i < 33; i++) {
-    if (!pose.visible(i)) continue;
+    if (isHand(i) || !pose.visible(i)) continue;
     ctx.beginPath();
     ctx.arc(pose.img(i)[0], pose.img(i)[1], JOINT_RADIUS * scale, 0, 2 * Math.PI);
     ctx.fill();
