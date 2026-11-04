@@ -28,13 +28,13 @@ export function drawPose(ctx: CanvasRenderingContext2D, pose: DrawablePose | nul
   for (const [width, color] of [[BONE_HALO, "rgba(16,18,17,0.65)"], [BONE_WIDTH, "rgba(238,241,236,0.92)"]] as const) {
     ctx.lineWidth = width * scale;
     ctx.strokeStyle = color;
+    ctx.beginPath();
     for (const [a, b] of SKELETON) {
       if (!pose.visible(a, b)) continue;
-      ctx.beginPath();
       ctx.moveTo(pose.img(a)[0], pose.img(a)[1]);
       ctx.lineTo(pose.img(b)[0], pose.img(b)[1]);
-      ctx.stroke();
     }
+    ctx.stroke();
   }
   ctx.fillStyle = "#b2dc78";
   for (let i = 11; i < 33; i++) {
