@@ -1,7 +1,7 @@
 // Pose landmarks for one person in one frame, plus smoothing
 // (port of cleanreps/landmarks.py and the PoseFrame/PoseSmoother parts of pose.py).
 
-import { OneEuroFilter } from "./filters";
+import { OneEuroFilter, SkeletonFilter } from "./filters";
 
 export const NUM_LANDMARKS = 33;
 
@@ -85,5 +85,32 @@ export class PoseSmoother {
   reset(): void {
     this.image.reset();
     this.world.reset();
+  }
+}
+
+/**
+ * The pose to draw. Only image x and y are filtered, and visibility becomes 1
+ * or 0 for shown or hidden, so this isn't a pose to measure from.
+ */
+export class SkeletonSmoother {
+  private filter = new SkeletonFilter();
+
+  apply(pose: PoseFrame | null, longSide: number): PoseFrame | null {
+    if (pose === null) {
+      this.filter.reset();
+      return null;
+    }
+    const xy = new Float64Array(NUM_LANDMARKS * 2);
+    for (let i = 0; i < NUM_LANDMARKS; i++) {
+      xy[i * 2] = pose.image[i * 3];
+      xy[i * 2 + 1] = pose.image[i * 3 + 1];
+    }
+    const out = this.filter.apply(xy, pose.visibility, pose.timestampMs / 1000, longSide);
+    const image = pose.image.slice();
+    for (let i = 0; i < NUM_LANDMARKS; i++) {
+      image[i * 3] = out.xy[i * 2];
+      image[i * 3 + 1] = out.xy[i * 2 + 1];
+    }
+    return new PoseFrame(image, pose.world, Float64Array.from(out.shown), pose.timestampMs);
   }
 }

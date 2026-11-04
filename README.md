@@ -126,6 +126,25 @@ The build reads the rules from `../cleanreps/rules` (Cloudflare clones the whole
 
 The old address, https://n-nguyen1337.github.io/clean-reps/app/, redirects here. The replay demo stays on GitHub Pages at the site root.
 
+### Exporting a set and tuning the skeleton
+
+Open the app with `?lab=1` (`?lab=0` turns it off again). After a set, the summary screen has an **Export video and skeleton** button, which hands over two files through the share sheet, or as downloads where there isn't one:
+
+- `<name>.mp4` (or `.webm`): the set's video, without the skeleton drawn on it.
+- `<name>.lab.json`: each frame's raw landmarks (`pose`), what was drawn (`shown`), and timings: `copy_ms`, `detect_ms`, `age_ms` and `dropped`. It also has the filter settings (`overlay`) and the engine's verdicts as draft labels.
+
+The drawn skeleton has its own filter, `SkeletonFilter` in [cleanreps/filters.py](cleanreps/filters.py), ported to [web/src/engine/filters.ts](web/src/engine/filters.ts). The engine's smoothing is separate, so changing it doesn't affect rep counts or verdicts. To tune it, keep the two files together and run:
+
+```bash
+python tools/tune_skeleton.py clip.lab.json --timing          # did the device keep up?
+python tools/tune_skeleton.py clip.lab.json --beta 0.02       # score other settings
+python tools/tune_skeleton.py clip.lab.json --sweep           # score a grid of settings
+python tools/tune_skeleton.py clip.lab.json --skew            # pose time stamps vs the video
+python tools/tune_skeleton.py clip.lab.json --render out.mp4  # old and new filter, side by side
+```
+
+To change a setting, update the defaults in both filter files and the values shared by their tests, [tests/test_geometry_filters.py](tests/test_geometry_filters.py) and [web/src/engine/\_\_tests\_\_/skeleton.test.ts](web/src/engine/__tests__/skeleton.test.ts). If `--skew` shows a device differs from the replay's assumption, adjust `POSE_STAMP_LAG_S` in [web/src/playback/playback.ts](web/src/playback/playback.ts) and in the tool.
+
 ### Parity with the Python engine
 
 The parity tests replay landmark fixtures exported by the Python pipeline and check that the TS engine reproduces every frame: metrics, phase, rep count, cues and completed reps. They're skipped when no fixtures exist. Generate fixtures from local clips with:

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { isClean, type Body, type Cue, type ExerciseUpdate, type RepResult } from "../engine/exercise";
 import { createExercise } from "../engine/exercises";
 import { CueManager, type Speaker } from "../engine/feedback";
-import { PoseSmoother } from "../engine/pose";
+import { PoseSmoother, SkeletonSmoother } from "../engine/pose";
 import { Session, type SessionRecord } from "../engine/session";
 import { LandmarkLog } from "../playback/lab";
 import { PoseTrack, RECORD_CAP_S, type Playback, type Recording } from "../playback/playback";
@@ -19,7 +19,7 @@ interface Props {
   speaker: Speaker;
   /** Record the set for replay on the summary screen. */
   recordVideo: boolean;
-  /** Lab mode: keep the raw landmarks so the summary can export them. */
+  /** Lab mode: keep the skeleton data and frame timings so the summary can export them. */
   lab?: boolean;
   onDone: (record: SessionRecord, playback: Playback | null, lab: LabCapture | null) => void;
   /** Leave before the set started: the camera explainer's "Not now", or Back after an error. */
@@ -116,16 +116,17 @@ export function LiveSession({ exercise, body, model, speaker, recordVideo, lab, 
 
       const ex = createExercise(exercise, body);
       const smoother = new PoseSmoother();
-      // What's drawn tracks fast movement more closely than what's measured. It costs no visible jitter.
-      const shownSmoother = new PoseSmoother(1.5, 0.2);
+      // What's drawn tracks fast movement more closely than what's measured.
+      const shownSmoother = new SkeletonSmoother();
       const cues = new CueManager(2, 4, speaker.say);
       const ctx = canvasRef.current!.getContext("2d")!;
       const frameCtx = frameRef.current!.getContext("2d", { alpha: false })!;
       const start = performance.now();
       if (recordVideo) recorderRef.current = SetRecorder.start(stream, start, RECORD_CAP_S);
       let lastTs = -1, lastRep: RepResult | null = null, fps = 0, prev = start, wasReady = false;
+      let lastPresented: number | null = null;
 
-      const onFrame = () => {
+      const onFrame = (_: number, meta?: VideoFrameCallbackMetadata) => {
         if (cancelled || !landmarker) return;
         const now = performance.now();
         // VIDEO mode requires strictly increasing timestamps.
@@ -141,9 +142,12 @@ export function LiveSession({ exercise, body, model, speaker, recordVideo, lab, 
 
         // Show the frame the model is about to read. The video keeps playing while it runs, so
         // drawing over the live element would leave the skeleton behind the person when they move.
+        const copyStart = performance.now();
         frameCtx.drawImage(video, 0, 0, w, h);
-        const raw = toPoseFrame(landmarker.detectForVideo(video, ts), w, h, ts);
-        labRef.current?.push(t, ts, raw, w, h);
+        const detectStart = performance.now();
+        const result = landmarker.detectForVideo(video, ts);
+        const detectEnd = performance.now();
+        const raw = toPoseFrame(result, w, h, ts);
         const pose = smoother.apply(raw);
         const update = ex.update(pose, t);
         sessionRef.current.sample(t, update.metrics);
@@ -155,9 +159,21 @@ export function LiveSession({ exercise, body, model, speaker, recordVideo, lab, 
         if (update.ready && !wasReady) setReadyBlinks((n) => n + 1);
         wasReady = update.ready;
         cues.push(update.cues, t);
-        const shown = shownSmoother.apply(raw);
+        const shown = shownSmoother.apply(raw, Math.max(w, h));
         if (recorderRef.current?.recording) posesRef.current.push(t, shown);
         drawPose(ctx, shown);
+
+        const presented = meta?.presentedFrames ?? null;
+        labRef.current?.push(t, ts, raw, w, h, {
+          shown,
+          timing: {
+            copyMs: detectStart - copyStart,
+            detectMs: detectEnd - detectStart,
+            ageMs: meta?.captureTime === undefined ? null : now - meta.captureTime,
+            dropped: presented === null || lastPresented === null ? null : Math.max(presented - lastPresented - 1, 0),
+          },
+        });
+        lastPresented = presented;
 
         fps = 0.9 * fps + 0.1 * (1000 / Math.max(now - prev, 1));
         prev = now;

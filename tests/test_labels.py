@@ -104,6 +104,16 @@ class TestImportLab:
         assert cache["source"] == "browser" and cache["model"] == "lite" and "labels" not in cache
         assert (out / "20261028-143005-squat.mp4").read_bytes() == b"video"
 
+    def test_cache_drops_what_was_drawn_but_keeps_timings(self, tmp_path: Path):
+        export = tmp_path / "a.lab.json"
+        frame = {"t": 0.0, "ts": 0, "pose": None, "shown": [[1, 2, 1]], "detect_ms": 24.0}
+        export.write_text(json.dumps(lab_export([frame], [])))
+
+        tool("import_lab").import_export(export, tmp_path / "clips", None, None, force=False)
+
+        cached = read_json(tmp_path / "clips" / "a.landmarks.json.gz")["frames"][0]
+        assert cached == {"t": 0.0, "ts": 0, "pose": None, "detect_ms": 24.0}
+
     def test_keeps_reviewed_labels(self, tmp_path: Path):
         export = tmp_path / "a.lab.json"
         export.write_text(json.dumps(lab_export([], [])))

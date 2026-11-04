@@ -10,6 +10,17 @@ import type { TracePoint } from "../engine/session";
 /** Recording stops after this long; the analysis keeps running. */
 export const RECORD_CAP_S = 4 * 60;
 
+/**
+ * How much later a pose is time-stamped than its picture appears in the
+ * recording, since the frame reaches the page after the camera took it. The
+ * replay looks this far ahead to find the pose from the picture on screen.
+ * Measured on an iPhone at 14-26 ms; `tools/tune_skeleton.py --skew` measures
+ * a clip from another device.
+ */
+export const POSE_STAMP_LAG_S = 0.018;
+/** Poses further apart than this aren't blended: something was missed between them. */
+const MAX_BLEND_S = 0.1;
+
 export interface Recording {
   video: Blob;
   mimeType: string;
@@ -73,7 +84,11 @@ export class PoseTrack {
     this.times[this.length++] = t;
   }
 
-  /** The latest frame at or before `t`, or null if there is none within `maxGapS`. */
+  /**
+   * The pose at `t`, blended between the frames either side so the skeleton
+   * doesn't step against a video with its own frame times. Null if no frame at
+   * or before `t` is within `maxGapS`.
+   */
   at(t: number, maxGapS = 0.25): PoseView | null {
     let lo = 0, hi = this.length - 1, found = -1;
     while (lo <= hi) {
@@ -81,7 +96,19 @@ export class PoseTrack {
       if (this.times[mid] <= t) { found = mid; lo = mid + 1; } else hi = mid - 1;
     }
     if (found < 0 || t - this.times[found] > maxGapS) return null;
-    return new PoseView(this.data.subarray(found * STRIDE, (found + 1) * STRIDE));
+    const before = this.data.subarray(found * STRIDE, (found + 1) * STRIDE);
+    const span = found + 1 < this.length ? this.times[found + 1] - this.times[found] : Infinity;
+    const f = (t - this.times[found]) / span;
+    if (f === 0 || span > MAX_BLEND_S) return new PoseView(before);
+
+    const after = this.data.subarray((found + 1) * STRIDE, (found + 2) * STRIDE);
+    const blended = before.slice();
+    for (let i = 0; i < NUM_LANDMARKS; i++) {
+      if (before[i * 3 + 2] < 0.5 || after[i * 3 + 2] < 0.5) continue; // a joint coming or going has nothing to blend with
+      blended[i * 3] += f * (after[i * 3] - before[i * 3]);
+      blended[i * 3 + 1] += f * (after[i * 3 + 1] - before[i * 3 + 1]);
+    }
+    return new PoseView(blended);
   }
 }
 

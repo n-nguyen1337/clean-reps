@@ -35,8 +35,42 @@ describe("PoseTrack", () => {
     expect(p.visible(0, 5)).toBe(true);
   });
 
-  it("holds the previous frame between frames", () => {
-    expect(Array.from(track.at(1.05)!.img(0))).toEqual([10, 20]);
+  it("blends between neighbouring frames", () => {
+    const close = new PoseTrack();
+    close.push(1.0, pose(10));
+    close.push(1.05, pose(20));
+    const p = close.at(1.025)!;
+    expect(p.img(0)[0]).toBeCloseTo(15, 3);
+    expect(p.img(0)[1]).toBeCloseTo(30, 3);
+    expect(p.visible(0)).toBe(true);
+  });
+
+  it("holds the previous frame when the next is a missing pose", () => {
+    const lost = new PoseTrack();
+    lost.push(1.0, pose(10));
+    lost.push(1.05, null);
+    expect(Array.from(lost.at(1.025)!.img(0))).toEqual([10, 20]);
+  });
+
+  it("holds the previous frame across a stall", () => {
+    const sparse = new PoseTrack();
+    sparse.push(1.0, pose(10));
+    sparse.push(1.2, pose(20));
+    expect(Array.from(sparse.at(1.1)!.img(0))).toEqual([10, 20]);
+  });
+
+  it("holds a joint that's hidden on the next frame", () => {
+    const hiding = new PoseTrack();
+    hiding.push(1.0, pose(10));
+    hiding.push(1.05, pose(20, 0));
+    expect(Array.from(hiding.at(1.025)!.img(0))).toEqual([10, 20]);
+    expect(hiding.at(1.025)!.visible(0)).toBe(true);
+  });
+
+  it("holds the last frame past the end", () => {
+    const close = new PoseTrack();
+    close.push(1.0, pose(10));
+    expect(Array.from(close.at(1.05)!.img(0))).toEqual([10, 20]);
   });
 
   it("returns nothing before the first frame or after a long gap", () => {
