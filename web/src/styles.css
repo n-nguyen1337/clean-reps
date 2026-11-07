@@ -220,12 +220,16 @@ select:hover { background-color: var(--hover); }
 .choice-mark { width: 20px; height: 20px; border-radius: 50%; box-shadow: inset 0 0 0 1.5px var(--control); }
 .choice.selected .choice-mark { box-shadow: inset 0 0 0 6px var(--accent); }
 
-/* The small exercise figures: a solid grey body with the worked muscles in the green. Drawn 5:4; a square slot letterboxes it. */
+/* The small exercise figures: a solid grey body at the end of the movement over a faded echo of its start, with the
+   worked muscles in the green. Drawn 5:4; a square slot letterboxes it. The echo's opacity sits on its group, never on
+   the shapes inside, or the overlaps show as darker spots. */
 .glyph { display: block; width: 52px; height: 52px; }
 .glyph .shadow { fill: #000; opacity: 0.3; }
 .glyph .body { fill: var(--control); }
+.glyph .echo { opacity: 0.35; }
 .glyph .muscle { fill: var(--accent); opacity: 0.8; }
 .choice.selected .glyph .body { fill: var(--faint); }
+.choice.selected .glyph .echo { opacity: 0.3; }
 .choice.selected .glyph .muscle { opacity: 1; }
 
 /* Home. */

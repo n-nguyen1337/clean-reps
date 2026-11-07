@@ -1,45 +1,81 @@
 /**
- * A small solid figure for each exercise, side on, with the muscles the movement works picked out in the accent.
- * Each limb is a tapered capsule between two joints; overlapping capsules in one fill read as a single silhouette.
- * Drawn in a 100 × 80 box.
+ * A small solid figure for each exercise, side on: the end of the movement in front, a faded echo of where it starts
+ * behind, and the muscles the movement works picked out in the accent. Each limb is a tapered capsule between two
+ * joints; overlapping capsules in one fill read as a single silhouette. Drawn in a 100 × 80 box.
  */
 type Limb = [x1: number, y1: number, r1: number, x2: number, y2: number, r2: number];
+type Pose = { head: [x: number, y: number, r: number]; limbs: Limb[] };
 type Muscle = { cx: number; cy: number; rx: number; ry: number; tilt: number };
-type Figure = { head: [number, number, number]; limbs: Limb[]; muscles: Muscle[]; shadow: [number, number, number] };
+type Figure = {
+  start: Pose;
+  end: Pose;
+  muscles: Muscle[];
+  shadow: [cx: number, cy: number, rx: number, ry: number];
+  /** Shrinks a figure whose start pose would not fit the box, keeping its feet on the same floor. */
+  frame?: string;
+};
 
 const FIGURES: Record<string, Figure> = {
-  // The bottom of a squat: thighs about parallel, torso leaning forward, arms out for balance.
   squat: {
-    head: [52, 20.5, 5.6],
-    limbs: [
-      [31, 50, 6.6, 54, 52, 4.6], // thigh
-      [54, 52, 4.2, 40, 71, 2.6], // shin
-      [40, 71, 2.5, 50, 72.6, 1.7], // foot
-      [31, 50, 6.6, 46, 30, 5.6], // torso
-      [46, 30, 3.2, 59, 32, 2.6], // upper arm
-      [59, 32, 2.6, 72, 33, 2.1], // forearm
-      [46, 30, 2.6, 51, 22, 2.6], // neck
-    ],
+    // Standing tall, arms by the sides.
+    start: {
+      head: [42, -12, 5.6],
+      limbs: [
+        [40, 71, 2.5, 50, 72.6, 1.7], // foot
+        [40, 71, 2.6, 41, 47.4, 4.4], // shin
+        [41, 47.4, 4.6, 40, 24.4, 6.4], // thigh
+        [40, 24.4, 6.4, 40.5, -0.6, 5.6], // torso
+        [40.5, -0.6, 3.2, 41.5, 12.4, 2.6], // upper arm
+        [41.5, 12.4, 2.6, 42.5, 25.4, 2.1], // forearm
+        [40.5, -0.6, 2.6, 41.5, -8, 2.6], // neck
+      ],
+    },
+    // The bottom: thighs about parallel, torso leaning forward, arms out for balance.
+    end: {
+      head: [52, 20.5, 5.6],
+      limbs: [
+        [31, 50, 6.6, 54, 52, 4.6], // thigh
+        [54, 52, 4.2, 40, 71, 2.6], // shin
+        [40, 71, 2.5, 50, 72.6, 1.7], // foot
+        [31, 50, 6.6, 46, 30, 5.6], // torso
+        [46, 30, 3.2, 59, 32, 2.6], // upper arm
+        [59, 32, 2.6, 72, 33, 2.1], // forearm
+        [46, 30, 2.6, 51, 22, 2.6], // neck
+      ],
+    },
     muscles: [{ cx: 40, cy: 50, rx: 12, ry: 3.6, tilt: 5 }], // quads and glutes
-    shadow: [40, 76.4, 17],
+    shadow: [42, 76.4, 20, 2],
+    frame: "translate(8 15) scale(0.8)",
   },
-  // The top of a push-up: a straight plank, arms straight under the shoulders.
   pushup: {
-    head: [90.5, 40.5, 5.6],
-    limbs: [
-      [15, 70, 1.8, 11, 65, 2.3], // foot
-      [11, 65, 2.4, 33.1, 58.3, 3.9], // shin
-      [33.1, 58.3, 4.1, 50.3, 53, 6.2], // thigh
-      [50.3, 53, 6.2, 80, 44, 5.8], // torso
-      [80, 44, 3.4, 80, 57, 2.7], // upper arm
-      [80, 57, 2.6, 80, 70, 2.2], // forearm
-      [80, 70, 2, 85.5, 70.6, 1.7], // hand
-    ],
-    muscles: [
-      { cx: 71.5, cy: 48.1, rx: 7.5, ry: 3.3, tilt: -16.9 }, // chest
-      { cx: 79.2, cy: 50.6, rx: 1.6, ry: 4.8, tilt: 0 }, // triceps
-    ],
-    shadow: [48, 74, 40],
+    // The top: a straight plank, arms straight under the shoulders.
+    start: {
+      head: [90.5, 40.5, 5.6],
+      limbs: [
+        [15, 70, 1.8, 11, 65, 2.3], // foot
+        [11, 65, 2.4, 33.1, 58.3, 3.9], // shin
+        [33.1, 58.3, 4.1, 50.3, 53, 6.2], // thigh
+        [50.3, 53, 6.2, 80, 44, 5.8], // torso
+        [80, 44, 3.4, 80, 57, 2.7], // upper arm
+        [80, 57, 2.6, 80, 70, 2.2], // forearm
+        [80, 70, 2, 85.5, 70.6, 1.7], // hand
+      ],
+    },
+    // The bottom: chest just off the floor, elbows bent back along the body.
+    end: {
+      head: [93.5, 56.5, 5.6],
+      limbs: [
+        [15, 70, 1.8, 11, 65, 2.3], // foot
+        [11, 65, 2.4, 34, 63.4, 3.9], // shin
+        [34, 63.4, 4.1, 52, 62.15, 6.2], // thigh
+        [52, 62.15, 6.2, 82.9, 60, 5.8], // torso
+        [82.9, 60, 3.4, 70.1, 61.7, 2.7], // upper arm
+        [70.1, 61.7, 2.6, 80, 70, 2.2], // forearm
+        [80, 70, 2, 85.5, 70.6, 1.7], // hand
+      ],
+    },
+    muscles: [{ cx: 73.7, cy: 62.4, rx: 7.5, ry: 3, tilt: -3.9 }], // chest
+    shadow: [50, 74, 42, 1.8],
   },
 };
 
@@ -67,27 +103,32 @@ function jointCircles(limbs: Limb[]): [number, number, number][] {
   return [...joints.values()];
 }
 
-const SHAPES = Object.fromEntries(
-  Object.entries(FIGURES).map(([key, f]) => [key, { outline: f.limbs.map(limbOutline).join(""), joints: jointCircles(f.limbs) }]),
-);
+function PoseShape({ pose, className }: { pose: Pose; className: string }) {
+  return (
+    <g className={className}>
+      <path d={pose.limbs.map(limbOutline).join("")} />
+      {jointCircles(pose.limbs).map(([x, y, r]) => <circle key={`${x}-${y}`} cx={x} cy={y} r={r} />)}
+      <circle cx={pose.head[0]} cy={pose.head[1]} r={pose.head[2]} />
+    </g>
+  );
+}
 
 export function ExerciseGlyph({ exercise }: { exercise: string }) {
   const figure = FIGURES[exercise];
   if (!figure) return <span className="glyph" />;
-  const { outline, joints } = SHAPES[exercise];
-  const [sx, sy, srx] = figure.shadow;
+  const [sx, sy, srx, sry] = figure.shadow;
   return (
     <svg className="glyph" viewBox="0 0 100 80" aria-hidden="true">
-      <ellipse className="shadow" cx={sx} cy={sy} rx={srx} ry="1.8" />
-      <g className="body">
-        <path d={outline} />
-        {joints.map(([x, y, r]) => <circle key={`${x}-${y}`} cx={x} cy={y} r={r} />)}
-        <circle cx={figure.head[0]} cy={figure.head[1]} r={figure.head[2]} />
-      </g>
-      <g className="muscle">
-        {figure.muscles.map((m) => (
-          <ellipse key={`${m.cx}-${m.cy}`} cx={m.cx} cy={m.cy} rx={m.rx} ry={m.ry} transform={m.tilt ? `rotate(${m.tilt} ${m.cx} ${m.cy})` : undefined} />
-        ))}
+      <g transform={figure.frame}>
+        <ellipse className="shadow" cx={sx} cy={sy} rx={srx} ry={sry} />
+        {/* The echo fades as one group, so the overlapping limb pieces inside it don't stack into darker spots. */}
+        <PoseShape pose={figure.start} className="body echo" />
+        <PoseShape pose={figure.end} className="body" />
+        <g className="muscle">
+          {figure.muscles.map((m) => (
+            <ellipse key={`${m.cx}-${m.cy}`} cx={m.cx} cy={m.cy} rx={m.rx} ry={m.ry} transform={`rotate(${m.tilt} ${m.cx} ${m.cy})`} />
+          ))}
+        </g>
       </g>
     </svg>
   );
