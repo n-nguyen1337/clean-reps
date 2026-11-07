@@ -5,7 +5,7 @@ import { createClient, type User } from "npm:@supabase/supabase-js@2.118.0";
 // A "*" right after the scheme matches one DNS label (no dots), for Cloudflare
 // Pages preview deployments like https://<branch>.clean-reps.pages.dev.
 const ALLOWED_ORIGINS = (Deno.env.get("ALLOWED_ORIGINS")
-  ?? "https://clean-reps.pages.dev,https://*.clean-reps.pages.dev,http://localhost:5173")
+  ?? "https://cleanreps.app,https://www.cleanreps.app,https://clean-reps.pages.dev,https://*.clean-reps.pages.dev,http://localhost:5173")
   .split(",").map((o) => o.trim()).filter(Boolean);
 
 function allowed(origin: string): boolean {
