@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import {
-  ACHIEVEMENTS, CATEGORIES, EXERCISES, progressOf, type AchievementDef, type Category, type Progression, type SetProgress,
+  ACHIEVEMENTS, CATEGORIES, EXERCISES, nearest, progressOf, type AchievementDef, type Category, type Progression, type SetProgress,
 } from "../store/achievements";
 import { TIER_XP, type Level } from "../store/level";
 import type { SetRecord } from "../store/record";
@@ -51,7 +51,7 @@ function Badge({ def, prog, onSelect }: { def: AchievementDef; prog: Progression
 }
 
 function AchievementSheet({ def, prog, sets, onOpen, onClose }: {
-  def: AchievementDef; prog: Progression; sets: SetRecord[]; onOpen: (set: SetRecord) => void; onClose: () => void;
+  def: AchievementDef; prog: Progression; sets: SetRecord[]; onOpen?: (set: SetRecord) => void; onClose: () => void;
 }) {
   const unlock = prog.unlocked[def.id];
   const secret = def.hidden && !unlock;
@@ -87,7 +87,7 @@ function AchievementSheet({ def, prog, sets, onOpen, onClose }: {
           </p>
         )}
         <div className="row tight">
-          {set && <button className="primary" onClick={() => onOpen(set)}>Open set</button>}
+          {set && onOpen && <button className="primary" onClick={() => onOpen(set)}>Open set</button>}
           <button className="ghost" onClick={onClose}>Close</button>
         </div>
       </div>
@@ -95,7 +95,7 @@ function AchievementSheet({ def, prog, sets, onOpen, onClose }: {
   );
 }
 
-function useSheet(prog: Progression, sets: SetRecord[], onOpen: (set: SetRecord) => void) {
+function useSheet(prog: Progression, sets: SetRecord[], onOpen?: (set: SetRecord) => void) {
   const [selected, setSelected] = useState<AchievementDef | null>(null);
   const sheet = selected && (
     <AchievementSheet def={selected} prog={prog} sets={sets} onOpen={onOpen} onClose={() => setSelected(null)} />
@@ -110,12 +110,7 @@ export function AchievementTeaser({ prog, sets, onOpen, onSeeAll }: {
   const [sheet, select] = useSheet(prog, sets, onOpen);
   const recent = useMemo(() => ACHIEVEMENTS.filter((d) => prog.unlocked[d.id])
     .sort((a, b) => prog.unlocked[b.id].at.localeCompare(prog.unlocked[a.id].at)).slice(0, 3), [prog]);
-  const next = useMemo(() => ACHIEVEMENTS
-    .filter((d) => !prog.unlocked[d.id] && !d.hidden)
-    .map((d) => ({ d, p: progressOf(d, prog.stats) }))
-    .filter(({ p }) => p && p.value > 0)
-    .sort((a, b) => b.p!.value / b.p!.target - a.p!.value / a.p!.target)
-    .slice(0, 3).map(({ d }) => d), [prog]);
+  const next = useMemo(() => nearest(prog, 3), [prog]);
 
   return (
     <>
@@ -129,6 +124,58 @@ export function AchievementTeaser({ prog, sets, onOpen, onSeeAll }: {
       <div className="badges">{next.map((d) => <Badge key={d.id} def={d} prog={prog} onSelect={select} />)}</div>
       {sheet}
     </>
+  );
+}
+
+/**
+ * On Home: a week streak that ends on Sunday without a set, and the achievements closest to unlocking that the
+ * picked exercise can work towards.
+ */
+export function NextUp({ prog, sets, exercise, streakAtRisk, now }: {
+  prog: Progression; sets: SetRecord[]; exercise: string; streakAtRisk: number; now: Date;
+}) {
+  const [sheet, select] = useSheet(prog, sets);
+  // The streak line already covers the streak achievements.
+  const next = useMemo(() => nearest(prog, 2, (d) => (!d.exercise || d.exercise === exercise)
+    && !(streakAtRisk > 0 && d.key === "streak"), now), [prog, exercise, streakAtRisk, now]);
+  if (!streakAtRisk && !next.length) return null;
+
+  return (
+    <section className="panel next-up">
+      <div className="panel-head">
+        <h2>Next up</h2>
+        <a className="text-link" href="#/progress/achievements">All achievements</a>
+      </div>
+      <ul className="goals">
+        {streakAtRisk > 0 && (
+          <li>
+            <div className="goal at-risk">
+              <span className="badge-ring" aria-hidden="true"><AchievementIcon emoji="🔥" /></span>
+              <span className="goal-text">
+                <b>{streakAtRisk}-week streak</b>
+                <span className="goal-desc">Train {now.getDay() === 0 ? "today" : "by Sunday"} to make it {streakAtRisk + 1} weeks in a row.</span>
+              </span>
+            </div>
+          </li>
+        )}
+        {next.map((d) => {
+          const p = progressOf(d, prog.stats, now)!;
+          return (
+            <li key={d.id}>
+              <button className="goal" onClick={() => select(d)}>
+                <span className="badge-ring locked" aria-hidden="true"><AchievementIcon emoji={d.emoji} /></span>
+                <span className="goal-text">
+                  <span className="goal-head"><b>{unbroken(d.title)}</b><span className="num">{fmt(p.value)} / {fmt(p.target)}</span></span>
+                  <span className="goal-desc">{d.description}</span>
+                  <span className="meter" aria-hidden="true"><i style={{ width: `${(p.value / p.target) * 100}%` }} /></span>
+                </span>
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+      {sheet}
+    </section>
   );
 }
 

@@ -3,7 +3,7 @@ import { sync, forgetSyncedSets, type Remote } from "../../cloud/sync";
 import { fromRow, toRow } from "../../cloud/remote";
 import type { ExerciseConfig, RepResult } from "../../engine/exercise";
 import { activeSets, db, deleteSet, getMeta, saveSet } from "../db";
-import { bestSet, previousSet, setPoints, weeklyTotals, weekStart, weekStreak } from "../progress";
+import { beatenBest, bestSet, previousSet, setPoints, streakAtRisk, weeklyTotals, weekStart, weekStreak } from "../progress";
 import { toSessionRecord, toSetRecord, type SetRecord } from "../record";
 
 const config: ExerciseConfig = {
@@ -72,6 +72,19 @@ describe("progress", () => {
     expect(weekStreak(sets, now)).toBe(3);
     expect(weekStreak(sets, new Date("2026-11-03T12:00:00"))).toBe(3); // nothing yet this week: count from last week
     expect(weekStreak(sets, new Date("2026-11-12T12:00:00"))).toBe(0);
+  });
+
+  it("warns about a streak only when this week has no set yet", () => {
+    expect(streakAtRisk(sets, now)).toBe(0); // trained on Monday
+    expect(streakAtRisk(sets, new Date("2026-11-03T12:00:00"))).toBe(3);
+    expect(streakAtRisk(sets, new Date("2026-11-12T12:00:00"))).toBe(0); // already broken
+  });
+
+  it("spots a new best only when a set beats every earlier one of its exercise", () => {
+    const better = makeSet("2026-10-28T18:00:00", [100, 90, 95, 92]);
+    expect(beatenBest([...sets, better], better)?.id).toBe(sets[2].id);
+    expect(beatenBest(sets, sets[0])).toBeNull(); // ties the best, doesn't beat it
+    expect(beatenBest(sets, sets[3])).toBeNull(); // first push-up set: nothing to beat
   });
 
   it("finds the best and the previous set of the same exercise", () => {

@@ -50,7 +50,7 @@ Existing camera-based fitness apps address part of this. Most need an install, a
 
 ### Beyond the set
 - **Progress:** reps, form score, depth and tempo trends; personal records and weekly streaks
-- **Motivation:** 59 achievements, XP and levels
+- **Motivation:** 64 achievements, XP and levels, a "Next up" card on Home, new-best callouts
 - **AI review (optional, signed in):** a short written review of each set, based on the set's numbers only
 
 ---

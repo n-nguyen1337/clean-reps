@@ -239,6 +239,7 @@ select:hover { background-color: var(--hover); }
 .home > .home-grid { order: 1; }
 .home > .kpi-strip { order: 2; }
 .home > .level-card { order: 3; }
+.home > .next-up { order: 4; }
 .home .level-head span { display: none; } /* the totals above already count achievements */
 .home-grid { display: grid; gap: var(--gap); align-items: stretch; }
 .next-set { display: flex; flex-direction: column; gap: var(--space-4); }
@@ -323,6 +324,22 @@ select:hover { background-color: var(--hover); }
 .panel .badge.locked { background: transparent; box-shadow: inset 0 0 0 1px var(--rule); }
 .panel .badge.locked:hover { background: var(--raised); }
 
+/* Next up on Home: one row per goal, side by side on wide screens with each meter on a common baseline. */
+.goals { list-style: none; padding: 0; margin: 0; display: grid; }
+.goals li { display: grid; }
+.goals li + li { border-top: 1px solid var(--rule); }
+.goal { display: grid; grid-template-columns: 48px minmax(0, 1fr); gap: var(--space-4); align-items: start; justify-content: stretch; padding: 14px 10px; margin: 0 -10px;
+  width: calc(100% + 20px); border-radius: 12px; text-align: left; min-height: 0; font-weight: 400; }
+button.goal { background: transparent; }
+button.goal:hover { background: var(--raised); }
+.goal-text { display: grid; grid-template-rows: auto 1fr auto; gap: 4px; min-width: 0; align-self: stretch; }
+.goal-text b { font-size: 15px; line-height: 22px; font-weight: 600; }
+.goal-head { display: flex; justify-content: space-between; align-items: baseline; gap: var(--space-3); }
+.goal-head .num { color: var(--muted); font-size: 13px; line-height: 18px; white-space: nowrap; }
+.goal-desc { color: var(--muted); font-size: 14px; line-height: 20px; }
+.goal .meter { margin-top: 6px; }
+.goal.at-risk .badge-ring { --tier: var(--warn); color: var(--warn); }
+
 .set-progress .hint.small + .badges { margin-top: 0; }
 .set-progress { display: grid; gap: var(--space-3); background: var(--surface); border: 1px solid var(--edge); border-radius: var(--radius-card); padding: var(--card-pad); }
 .level-up { margin: 0; font-size: 17px; font-weight: 600; color: var(--accent); animation: pop 0.5s ease-out both 0.6s; }
@@ -356,6 +373,9 @@ select:hover { background-color: var(--hover); }
 /* Summary. */
 .summary .lead { margin-bottom: var(--gap); display: grid; gap: var(--space-5); padding: var(--space-5) var(--card-pad); }
 .lead-figure { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-2) var(--space-4); flex-wrap: wrap; }
+.lead-notes { display: grid; gap: 4px; }
+.new-best { color: var(--muted); margin: 0; font-size: 14px; line-height: 20px; }
+.new-best b { color: var(--positive); font-weight: 600; }
 .since-last { color: var(--muted); margin: 0; font-size: 14px; line-height: 20px; }
 .since-last b { font-weight: 600; white-space: nowrap; }
 .since-last .up { color: var(--positive); }
@@ -729,6 +749,9 @@ input[type="checkbox"][role="switch"]:checked::after { transform: translateX(18p
   .rep-table th, .rep-table td { height: 42px; }
   .home > .kpi-strip { order: 3; }
   .home > .level-card { order: 4; }
+  .home > .next-up { order: 5; }
+  .goals { grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); column-gap: var(--space-5); }
+  .goals li + li { border-top: 0; }
   .cols.keep-order > .col-main, .cols.keep-order > .col-side { display: grid; }
   .achievements .badges { grid-template-columns: repeat(6, minmax(0, 1fr)); }
   .summary .lead { grid-template-columns: auto auto; justify-content: start; align-items: center; gap: var(--space-4) 88px; padding: var(--space-5) var(--space-6); }

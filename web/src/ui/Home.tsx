@@ -2,10 +2,10 @@ import { Fragment, useMemo } from "react";
 import type { ExerciseConfig } from "../engine/exercise";
 import { EXERCISE_KEYS } from "../engine/exercises";
 import { ACHIEVEMENTS, type Progression } from "../store/achievements";
-import { weeklyTotals, weekStreak } from "../store/progress";
+import { streakAtRisk, weeklyTotals, weekStreak } from "../store/progress";
 import type { SetRecord } from "../store/record";
 import type { Settings } from "../store/settings";
-import { LevelCard } from "./Achievements";
+import { LevelCard, NextUp } from "./Achievements";
 import { ExerciseGlyph } from "./ExerciseGlyph";
 import { Logo } from "./Logo";
 import { RepStrip } from "./RepStrip";
@@ -161,6 +161,7 @@ export function Home({ sets, prog, configs, exercise, onExercise, settings, onSt
         <>
           <Totals sets={sets} prog={prog} now={now} />
           {prog && <LevelCard level={prog.level} unlocked={Object.keys(prog.unlocked).length} />}
+          {prog && <NextUp prog={prog} sets={sets} exercise={exercise} streakAtRisk={streakAtRisk(sets, now)} now={now} />}
         </>
       )}
     </main>
