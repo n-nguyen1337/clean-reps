@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { forgetSyncedSets } from "../../cloud/sync";
 import type { ExerciseConfig, RepResult } from "../../engine/exercise";
-import { ACHIEVEMENTS, progression, replay, setProgress } from "../achievements";
+import { ACHIEVEMENTS, nearest, progression, progressOf, replay, setProgress } from "../achievements";
 import { db, saveSet, saveUnlocks } from "../db";
 import { levelFor, setXp, xpForLevel } from "../level";
 import { toSetRecord, type SetRecord } from "../record";
@@ -56,10 +56,22 @@ describe("levels", () => {
 });
 
 describe("achievements", () => {
-  it("has unique ids, 59 visible and 3 hidden", () => {
+  it("has unique ids, 64 visible and 3 hidden", () => {
     expect(new Set(ACHIEVEMENTS.map((d) => d.id)).size).toBe(ACHIEVEMENTS.length);
-    expect(ACHIEVEMENTS.filter((d) => !d.hidden)).toHaveLength(59);
+    expect(ACHIEVEMENTS.filter((d) => !d.hidden)).toHaveLength(64);
     expect(ACHIEVEMENTS.filter((d) => d.hidden)).toHaveLength(3);
+  });
+
+  it("adds smaller steps for the early weeks without changing the tiers of existing ones", () => {
+    const tier = (id: string) => ACHIEVEMENTS.find((d) => d.id === id)!.tier;
+    expect(["squat-reps-250", "streak-3", "sets-25"].map(tier)).toEqual(["bronze", "bronze", "bronze"]);
+    expect(tier("streak-6")).toBe("silver");
+    expect(["squat-reps-500", "streak-4", "streak-8", "sets-10", "sets-50"].map(tier))
+      .toEqual(["silver", "bronze", "silver", "bronze", "silver"]);
+
+    const weekly = ["2026-10-05T18:00", "2026-10-12T18:00", "2026-10-19T18:00"].map((d) => makeSet(d, 5));
+    expect(ids(weekly)).toContain("streak-3");
+    expect(ids(weekly)).not.toContain("streak-4");
   });
 
   it("unlocks at the first set that crosses the threshold", () => {
@@ -104,6 +116,33 @@ describe("achievements", () => {
   it("spots a comeback after 30 days off", () => {
     expect(ids([makeSet("2026-08-01T18:00", 5), makeSet("2026-09-05T18:00", 5)])).toContain("comeback");
     expect(ids([makeSet("2026-08-01T18:00", 5), makeSet("2026-08-20T18:00", 5)])).not.toContain("comeback");
+  });
+});
+
+describe("progress towards an achievement", () => {
+  const def = (id: string) => ACHIEVEMENTS.find((d) => d.id === id)!;
+
+  it("shows the run still going for an in-a-row achievement, not the best one", () => {
+    const { stats } = replay(["2026-10-05T18:00", "2026-10-12T18:00", "2026-10-19T18:00"].map((d) => makeSet(d, 5)));
+    expect(stats.n.streak).toBe(3);
+    expect(progressOf(def("streak-4"), stats, new Date("2026-10-21T12:00"))).toEqual({ value: 3, target: 4 });
+    expect(progressOf(def("streak-4"), stats, new Date("2026-10-28T12:00"))?.value).toBe(3); // nothing yet this week
+    expect(progressOf(def("streak-4"), stats, new Date("2026-11-04T12:00"))?.value).toBe(0); // a week missed
+
+    const form = replay([
+      makeSet("2026-10-01T18:00", 5), makeSet("2026-10-02T18:00", 5),
+      makeSet("2026-10-03T18:00", 5, { faults: [["depth"]] }), // 80% clean breaks the run
+    ]).stats;
+    expect(form.n.formRun).toBe(2);
+    expect(progressOf(def("form-streak"), form)?.value).toBe(0);
+  });
+
+  it("picks the started achievements closest to unlocking, skipping secret ones", () => {
+    const now = new Date("2026-10-02T12:00");
+    const prog = progression([makeSet("2026-10-01T18:00", 60)]);
+    expect(nearest(prog, 2, undefined, now).map((d) => d.id)).toEqual(["squat-reps-100", "big-day"]); // both 60%
+    expect(nearest(prog, 99, undefined, now).some((d) => d.hidden || prog.unlocked[d.id])).toBe(false);
+    expect(nearest(prog, 99, (d) => d.exercise === "pushup", now)).toEqual([]);
   });
 });
 

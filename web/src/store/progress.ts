@@ -86,6 +86,13 @@ export function weekStreak(sets: SetRecord[], now: Date): number {
   return streak;
 }
 
+/** The week streak that ends on Sunday unless there's a set this week; 0 when none is at risk. */
+export function streakAtRisk(sets: SetRecord[], now: Date): number {
+  const week = weekStart(now).getTime();
+  if (sets.some((s) => weekStart(new Date(s.summary.started)).getTime() === week)) return 0;
+  return weekStreak(sets, now);
+}
+
 /** The set with the most clean reps; the earliest one wins a tie. */
 export function bestSet(sets: SetRecord[]): SetRecord | null {
   let best: SetRecord | null = null;
@@ -95,6 +102,13 @@ export function bestSet(sets: SetRecord[]): SetRecord | null {
       || (s.summary.cleanReps === best.summary.cleanReps && s.summary.started < best.summary.started)) best = s;
   }
   return best;
+}
+
+/** The best earlier set of the same exercise when `set` has more clean reps than it; null when `set` isn't a new best. */
+export function beatenBest(sets: SetRecord[], set: SetRecord): SetRecord | null {
+  const best = bestSet(sets.filter((s) => s.id !== set.id && s.summary.exercise === set.summary.exercise
+    && s.summary.started < set.summary.started));
+  return best && set.summary.cleanReps > best.summary.cleanReps ? best : null;
 }
 
 /** The latest set of the same exercise started before `set`. */

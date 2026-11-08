@@ -25,7 +25,7 @@ The architecture is a good base for scale. Pose estimation runs in the browser, 
 - Set summary with charts, insights and a "since last time" line
 - **Set playback** ([PLAN-playback.md](PLAN-playback.md)): the recorded video with the pose skeleton overlaid, rep timeline, seek from any rep, loop, frame step, speed. Kept in memory only.
 - **Progress** ([PLAN-progress.md](PLAN-progress.md)): local-first history in IndexedDB, trend charts (volume, form score, depth, fault trend, tempo), PRs and streaks, delete, JSON export
-- **Achievements and levels** ([PLAN-achievements.md](PLAN-achievements.md)): 59 achievements, XP and one overall level, derived from set history
+- **Achievements and levels** ([PLAN-achievements.md](PLAN-achievements.md)): 64 achievements, XP and one overall level, derived from set history; "Next up" on Home with a streak-at-risk warning; new-best line on the summary
 - **App shell** ([PLAN-landing.md](PLAN-landing.md)): Home, Progress, About and Settings behind a tab bar with hash routes; cleanReps logo
 
 ### Backend (optional, Supabase)

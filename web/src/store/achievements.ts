@@ -62,6 +62,11 @@ export interface AchievementDef {
   /** Counter achievements unlock when `stats.n[key]` reaches `target`, which also drives the progress bar. */
   key?: string;
   target?: number;
+  /**
+   * For an "in a row" counter, the run still going at `now`. It drives the progress bar instead of `key`, which keeps
+   * the best run ever: once a run breaks, the next one starts from zero.
+   */
+  live?: (s: Stats, now: Date) => number;
   check?: (c: SetCtx, s: Stats) => boolean;
 }
 
@@ -89,12 +94,30 @@ function hasFixed(c: SetCtx, s: Stats, rule: string): boolean {
 
 const avg = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / xs.length;
 
+const prevWeek = (ms: number) => {
+  const d = new Date(ms);
+  d.setDate(d.getDate() - 7);
+  return d.getTime();
+};
+
+/** Weeks in a row that pass `ok`, ending this week, or last week if this week doesn't pass yet. */
+function weeksInARow(weeks: Map<number, Set<string>>, now: Date, ok: (exercises: Set<string>) => boolean = () => true): number {
+  const passes = (w: number) => weeks.has(w) && ok(weeks.get(w)!);
+  let w = weekStart(now).getTime();
+  if (!passes(w)) w = prevWeek(w);
+  let n = 0;
+  for (; passes(w); w = prevWeek(w)) n++;
+  return n;
+}
+
+const everyExercise = (exercises: Set<string>) => Object.keys(EXERCISES).every((e) => exercises.has(e));
+
 function buildDefs(): AchievementDef[] {
   const defs: AchievementDef[] = [];
   for (const [ex, { name, noun, emoji }] of Object.entries(EXERCISES)) {
     const Noun = noun[0].toUpperCase() + noun.slice(1);
-    [1, 100, 500, 1000, 5000, 10000].forEach((n, i) => defs.push({
-      id: `${ex}-reps-${n}`, exercise: ex, category: "volume", emoji, tier: TIERS[[0, 0, 1, 1, 2, 3][i]],
+    [1, 100, 250, 500, 1000, 5000, 10000].forEach((n, i) => defs.push({
+      id: `${ex}-reps-${n}`, exercise: ex, category: "volume", emoji, tier: TIERS[[0, 0, 0, 1, 1, 2, 3][i]],
       title: n === 1 ? `First ${name}` : `${fmt(n)} ${Noun}`,
       description: n === 1 ? `Count your first ${name.toLowerCase()}.` : `Count ${fmt(n)} ${noun} in total.`,
       key: `reps:${ex}`, target: n,
@@ -135,7 +158,8 @@ function buildDefs(): AchievementDef[] {
     { id: "controlled-10", category: "technique", emoji: "🧘", tier: "silver", title: "Slow and Steady",
       description: "Finish 10 controlled sets.", key: "controlled", target: 10 },
     { id: "form-streak", category: "technique", emoji: "✅", tier: "silver", title: "Form Streak",
-      description: "5 sets in a row of the same exercise, each of 5 or more reps with at least 90% clean.", key: "formRun", target: 5 },
+      description: "5 sets in a row of the same exercise, each of 5 or more reps with at least 90% clean.", key: "formRun", target: 5,
+      live: (s) => Math.max(0, ...Object.values(s.formRun)) },
     { id: "glow-up", category: "technique", emoji: "🌟", tier: "gold", title: "Glow Up",
       description: "Raise your clean-rep rate by 20 points or more: your latest 5 sets of an exercise against your first 5.",
       check: (c, s) => {
@@ -143,12 +167,13 @@ function buildDefs(): AchievementDef[] {
         return p.length >= 10 && avg(p.slice(-5)) - avg(p.slice(0, 5)) >= 20;
       } },
   );
-  [2, 4, 8, 12, 26, 52].forEach((n, i) => defs.push({
-    id: `streak-${n}`, category: "consistency", emoji: "🔥", tier: TIERS[[0, 0, 1, 1, 2, 3][i]],
+  [2, 3, 4, 6, 8, 12, 26, 52].forEach((n, i) => defs.push({
+    id: `streak-${n}`, category: "consistency", emoji: "🔥", tier: TIERS[[0, 0, 0, 1, 1, 1, 2, 3][i]],
     title: `${n}-Week Streak`, description: `Train at least once a week for ${n} weeks in a row.`, key: "streak", target: n,
+    live: (s, now) => weeksInARow(s.weeks, now),
   }));
-  [10, 50, 100, 250].forEach((n, i) => defs.push({
-    id: `sets-${n}`, category: "consistency", emoji: "🏋️", tier: TIERS[i],
+  [10, 25, 50, 100, 250].forEach((n, i) => defs.push({
+    id: `sets-${n}`, category: "consistency", emoji: "🏋️", tier: TIERS[[0, 0, 1, 2, 3][i]],
     title: `${n} Sets`, description: `Finish ${n} sets.`, key: "sets", target: n,
   }));
   defs.push(
@@ -161,7 +186,8 @@ function buildDefs(): AchievementDef[] {
     { id: "full-body", category: "sessions", emoji: "🤸", tier: "bronze", title: "Full Body",
       description: "Do squats and push-ups on the same day.", key: "dayExercises", target: 2 },
     { id: "all-rounder", category: "sessions", emoji: "🔄", tier: "silver", title: "All-Rounder",
-      description: "Do both squats and push-ups in each of 4 weeks in a row.", key: "allRound", target: 4 },
+      description: "Do both squats and push-ups in each of 4 weeks in a row.", key: "allRound", target: 4,
+      live: (s, now) => weeksInARow(s.weeks, now, everyExercise) },
     { id: "early-bird", category: "fun", emoji: "🌅", tier: "bronze", title: "Early Bird",
       description: "Start a set before 7 am.", check: (c) => c.started.getHours() < 7 },
     { id: "night-owl", category: "fun", emoji: "🦉", tier: "bronze", title: "Night Owl",
@@ -182,11 +208,6 @@ export const ACHIEVEMENTS: AchievementDef[] = buildDefs();
 const BY_ID = new Map(ACHIEVEMENTS.map((d) => [d.id, d]));
 
 const dayKey = (d: Date) => `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
-const prevWeek = (ms: number) => {
-  const d = new Date(ms);
-  d.setDate(d.getDate() - 7);
-  return d.getTime();
-};
 
 function emptyStats(): Stats {
   return { n: {}, faulted: new Set(), cleanPcts: {}, days: new Map(), weeks: new Map(), months: new Map(), formRun: {} };
@@ -236,7 +257,7 @@ function record(s: Stats, c: SetCtx): void {
   let allRound = 0;
   for (let w = week, both = true; s.weeks.has(w); w = prevWeek(w)) {
     streak++;
-    both &&= Object.keys(EXERCISES).every((e) => s.weeks.get(w)!.has(e));
+    both &&= everyExercise(s.weeks.get(w)!);
     if (both) allRound++;
   }
   max("streak", streak);
@@ -305,9 +326,21 @@ export function progression(sets: SetRecord[], stored: Unlocks = {}): Progressio
 }
 
 /** How far a counter achievement has got; null for one-off achievements. */
-export function progressOf(def: AchievementDef, stats: Stats): { value: number; target: number } | null {
+export function progressOf(def: AchievementDef, stats: Stats, now = new Date()): { value: number; target: number } | null {
   if (!def.key) return null;
-  return { value: Math.min(stats.n[def.key] ?? 0, def.target!), target: def.target! };
+  const value = def.live ? def.live(stats, now) : stats.n[def.key] ?? 0;
+  return { value: Math.min(value, def.target!), target: def.target! };
+}
+
+/** Locked, visible counter achievements that have made a start and pass `test`, closest to unlocking first. */
+export function nearest(prog: Progression, n: number, test: (def: AchievementDef) => boolean = () => true,
+  now = new Date()): AchievementDef[] {
+  return ACHIEVEMENTS
+    .filter((d) => !prog.unlocked[d.id] && !d.hidden && test(d))
+    .map((d) => ({ d, p: progressOf(d, prog.stats, now) }))
+    .filter(({ p }) => p && p.value > 0)
+    .sort((a, b) => b.p!.value / b.p!.target - a.p!.value / a.p!.target)
+    .slice(0, n).map(({ d }) => d);
 }
 
 export interface SetProgress {

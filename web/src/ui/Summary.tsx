@@ -89,8 +89,20 @@ function SinceLast({ current, previous }: { current: SessionRecord["summary"]; p
   );
 }
 
-export function Summary({ record, previous, playback, progress, back, children }: {
+/** "New best" line: the set beat the best earlier set of the same exercise on clean reps. */
+function NewBest({ beaten }: { beaten: SetRecord }) {
+  const n = beaten.summary.cleanReps;
+  return (
+    <p className="new-best">
+      <b>New best.</b> Up from {n} clean {n === 1 ? "rep" : "reps"} ({shortDate(new Date(beaten.summary.started))}).
+    </p>
+  );
+}
+
+export function Summary({ record, previous, best, playback, progress, back, children }: {
   record: SessionRecord; previous?: SetRecord | null;
+  /** The earlier best this set just beat; only given right after the set. */
+  best?: SetRecord | null;
   /** The set's recording, right after it ends. Past sets have none. */
   playback?: Playback | null;
   /** XP, level and achievements the set earned. */
@@ -169,7 +181,12 @@ export function Summary({ record, previous, playback, progress, back, children }
       <section className="panel lead">
         <div className="lead-figure">
           <p className="figure"><b className="num">{s.cleanReps}</b><span> of {s.reps} reps clean</span></p>
-          {previous && <SinceLast current={s} previous={previous} />}
+          {(best || previous) && (
+            <div className="lead-notes">
+              {best && <NewBest beaten={best} />}
+              {previous && <SinceLast current={s} previous={previous} />}
+            </div>
+          )}
         </div>
         <RepStrip reps={record.reps} size="large" legend />
         <dl className="kpi-strip flat">

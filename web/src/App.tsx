@@ -10,7 +10,7 @@ import { navigate, useRoute } from "./route";
 import { ACHIEVEMENTS, progression, setProgress } from "./store/achievements";
 import { deleteSet, saveSet, saveUnlocks, useSets, useUnlocks } from "./store/db";
 import { setXp } from "./store/level";
-import { previousSet } from "./store/progress";
+import { beatenBest, previousSet } from "./store/progress";
 import { toSessionRecord, toSetRecord, type SetRecord } from "./store/record";
 import { acceptDisclaimer, disclaimerAccepted } from "./store/consent";
 import { feedbackLater, feedbackNever, feedbackSent, shouldAskFeedback } from "./store/feedback";
@@ -104,7 +104,8 @@ export function App() {
 
   if (session?.kind === "summary") {
     return (
-      <Summary record={session.record} previous={sets && previousSet(sets, session.set)} playback={session.playback}
+      <Summary record={session.record} previous={sets && previousSet(sets, session.set)}
+        best={summarySet && sets && beatenBest(sets, summarySet)} playback={session.playback}
         progress={setProg && <SetProgressPanel progress={setProg} />}>
         <button className="primary" onClick={start}>Go again</button>
         <button className="ghost" onClick={() => {
